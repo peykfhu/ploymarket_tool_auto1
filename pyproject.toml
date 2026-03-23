@@ -1,0 +1,103 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "polymarket-trader"
+version = "0.1.0"
+description = "Automated Polymarket trading system"
+requires-python = ">=3.11"
+
+dependencies = [
+    # Async & HTTP
+    "aiohttp>=3.9.0",
+    "aiofiles>=23.2.1",
+    "httpx>=0.26.0",
+    "websockets>=12.0",
+
+    # FastAPI (admin backend)
+    "fastapi>=0.109.0",
+    "uvicorn[standard]>=0.27.0",
+    "pydantic>=2.5.0",
+    "pydantic-settings>=2.1.0",
+
+    # Database
+    "sqlalchemy[asyncio]>=2.0.25",
+    "asyncpg>=0.29.0",           # PostgreSQL async driver
+    "alembic>=1.13.1",
+    "redis[hiredis]>=5.0.1",
+
+    # On-chain / Polymarket
+    "web3>=6.14.0",
+    "py-clob-client>=0.14.0",    # Official Polymarket CLOB SDK
+    "eth-account>=0.10.0",
+
+    # NLP & ML
+    "openai>=1.10.0",
+    "anthropic>=0.18.0",
+    "nltk>=3.8.1",
+    "spacy>=3.7.2",
+    "scikit-learn>=1.4.0",
+    "numpy>=1.26.0",
+    "pandas>=2.1.4",
+    "scipy>=1.12.0",
+
+    # Telegram
+    "python-telegram-bot>=20.7",
+
+    # Logging & monitoring
+    "structlog>=24.1.0",
+    "prometheus-client>=0.19.0",
+
+    # Config
+    "pyyaml>=6.0.1",
+    "python-dotenv>=1.0.0",
+
+    # Scheduling
+    "apscheduler>=3.10.4",
+
+    # Data & charting (backtest reports)
+    "matplotlib>=3.8.2",
+    "plotly>=5.18.0",
+    "pyarrow>=14.0.2",           # Parquet support
+
+    # Utilities
+    "tenacity>=8.2.3",           # Retry logic
+    "cachetools>=5.3.2",
+    "python-dateutil>=2.8.2",
+    "pytz>=2024.1",
+    "ujson>=5.9.0",
+    "xxhash>=3.4.1",             # Fast hashing for dedup
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.4",
+    "pytest-asyncio>=0.23.3",
+    "pytest-cov>=4.1.0",
+    "black>=24.1.1",
+    "ruff>=0.1.14",
+    "mypy>=1.8.0",
+    "factory-boy>=3.3.0",
+    "faker>=22.2.0",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["."]
+
+[tool.black]
+line-length = 100
+target-version = ["py311"]
+
+[tool.ruff]
+line-length = 100
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]

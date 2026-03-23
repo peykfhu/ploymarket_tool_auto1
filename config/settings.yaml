@@ -1,0 +1,169 @@
+# ============================================================
+# Polymarket Trading System - Default Configuration
+# ============================================================
+# All values here are non-sensitive defaults.
+# Override with env vars using SECTION__KEY=value syntax.
+# Secrets (passwords, API keys) should ONLY be set via .env
+# or environment injection — never committed here.
+# ============================================================
+
+database:
+  postgres_host: postgres          # Docker service name
+  postgres_port: 5432
+  postgres_db: polymarket
+  postgres_user: trader
+  postgres_pool_size: 10
+  postgres_max_overflow: 20
+  redis_host: redis
+  redis_port: 6379
+  redis_db: 0
+  redis_pool_size: 20
+
+polymarket:
+  chain_id: 137
+  rpc_url: "https://polygon-rpc.com"
+  rpc_url_ws: "wss://polygon-bor-rpc.publicnode.com"
+  clob_api_url: "https://clob.polymarket.com"
+  gamma_api_url: "https://gamma-api.polymarket.com"
+  usdc_address: "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174"
+  ctf_address: "0x4D97DCd97eC945f40cF65F87097ACe5EA0476045"
+  neg_risk_ctf_address: "0xd91E80cF2E7be2e162c6513ceD06f1dD0dA35296"
+  market_refresh_interval_s: 300
+  price_refresh_interval_s: 10
+  min_market_age_hours: 24
+  max_markets_to_watch: 50
+
+news:
+  twitter_poll_interval_s: 0          # 0 = streaming mode
+  newsapi_poll_interval_s: 30
+  rss_poll_interval_s: 60
+  twitter_watchlist:
+    - POTUS
+    - WhiteHouse
+    - AP
+    - Reuters
+    - Bloomberg
+    - BBCBreaking
+    - nytimes
+    - WSJ
+    - FT
+    - elonmusk
+  rss_feeds:
+    - "https://feeds.bbci.co.uk/news/rss.xml"
+    - "https://rss.nytimes.com/services/xml/rss/nyt/HomePage.xml"
+    - "https://feeds.reuters.com/reuters/topNews"
+    - "https://feeds.a.dj.com/rss/RSSWorldNews.xml"
+    - "https://feeds.skynews.com/feeds/rss/home.xml"
+
+sports:
+  football_poll_interval_s: 10
+  basketball_poll_interval_s: 15
+  nfl_poll_interval_s: 15
+  tracked_leagues:
+    - "Premier League"
+    - "La Liga"
+    - "Bundesliga"
+    - "Serie A"
+    - "Champions League"
+    - "NBA"
+    - "NFL"
+    - "MLB"
+
+whale:
+  tier_s_min_usd: 50000.0
+  tier_a_min_usd: 10000.0
+  tier_b_min_usd: 2000.0
+  follow_delay_minutes: 10
+  min_whale_win_rate: 0.55
+  consensus_min_count: 3
+  seed_addresses: []               # Populated by scripts/seed_whale_list.py
+
+signal:
+  openai_model: "gpt-4o-mini"
+  use_llm_for_direction: true
+  llm_timeout_s: 3.0
+  market_match_threshold: 0.60
+  speed_advantage_max_price_move_pct: 0.05
+  dedup_window_s: 300
+
+risk:
+  max_single_position_pct: 0.08
+  max_total_exposure_pct: 0.60
+  max_concurrent_positions: 8
+  max_same_category_positions: 4
+  min_cash_reserve_pct: 0.10
+  max_daily_loss_pct: 0.05
+  max_daily_loss_hard_pct: 0.10
+  max_daily_trades: 20
+  min_market_liquidity_usd: 2000.0
+  max_spread_pct: 0.05
+  min_market_age_hours: 24
+  max_trades_per_30min: 5
+  revenge_trade_lockout_minutes: 3
+  no_large_orders_quiet_hours: true
+  default_sizing_method: "fixed_pct"   # fixed_pct | kelly | volatility_adjusted
+  kelly_fraction: 0.5
+  score_to_position:
+    strong_buy: 0.06
+    buy: 0.03
+
+strategy:
+  enabled_strategies:
+    - swing_mean_reversion
+    - swing_breakout
+    - swing_event_driven
+    - sports_safe_lock
+    - sports_reversal
+    - sports_live_ou
+    - whale_single_follow
+    - whale_consensus
+  strong_buy_threshold: 80
+  buy_threshold: 60
+  watch_threshold: 40
+  mean_reversion_lookback_days: 7
+  mean_reversion_entry_deviation: 0.15
+  breakout_confirmation_volume_multiplier: 2.0
+  safe_lock_max_remaining_minutes: 15
+  safe_lock_min_lead_goals: 2
+  reversal_max_market_price: 0.35
+  whale_follow_min_score: 65
+
+execution:
+  mode: "paper"                    # CHANGE TO "live" ONLY WHEN READY
+  max_slippage_pct: 0.02
+  order_timeout_s: 30
+  max_retries: 3
+  retry_delay_s: 1.0
+  paper_initial_balance: 10000.0
+  fee_rate: 0.02
+
+notification:
+  max_messages_per_minute: 10
+  quiet_hours_start_utc: 2
+  quiet_hours_end_utc: 6
+  notify_on_signal: true
+  notify_on_trade: true
+  notify_on_stop_triggered: true
+  notify_on_whale_alert: true
+  notify_on_risk_alert: true
+  notify_on_circuit_breaker: true
+  notify_daily_report: true
+  notify_weekly_report: true
+
+backtest:
+  initial_balance: 10000.0
+  fee_rate: 0.02
+  slippage_model: "volume_based"   # fixed | volume_based
+  fixed_slippage_pct: 0.005
+  signal_delay_ms: 500
+  execution_delay_ms: 1000
+  data_dir: "data/historical"
+  walk_forward_train_months: 3
+  walk_forward_test_months: 1
+
+logging:
+  level: "INFO"
+  format: "json"                   # json | console
+  log_dir: "logs"
+  max_file_size_mb: 100
+  backup_count: 10
