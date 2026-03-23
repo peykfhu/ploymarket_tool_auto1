@@ -1,11 +1,11 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh">
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>Polymarket Trader · Control Room</title>
+<title>Polymarket Trader · 控制台</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
-<link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet"/>
 <style>
 :root{
   --bg:#0a0b0e;--surface:#111318;--border:#1e2128;--border2:#2a2f3a;
@@ -17,24 +17,32 @@
 }
 *{box-sizing:border-box;margin:0;padding:0}
 body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;font-size:14px;min-height:100vh;overflow-x:hidden}
-/* scanline overlay */
 body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,.03) 2px,rgba(0,0,0,.03) 4px);pointer-events:none;z-index:9999}
 
-/* ── Layout ── */
 .shell{display:grid;grid-template-columns:220px 1fr;grid-template-rows:56px 1fr;min-height:100vh}
 header{grid-column:1/-1;display:flex;align-items:center;justify-content:space-between;padding:0 24px;border-bottom:1px solid var(--border);background:var(--surface)}
 .logo{font-family:'Space Mono',monospace;font-size:13px;letter-spacing:.08em;color:var(--text)}
 .logo span{color:var(--green)}
-.header-right{display:flex;align-items:center;gap:16px}
+.header-right{display:flex;align-items:center;gap:12px}
 .mode-badge{font-family:'Space Mono',monospace;font-size:11px;padding:4px 10px;border-radius:4px;border:1px solid;text-transform:uppercase;letter-spacing:.1em}
 .mode-paper{background:var(--amber-dim);border-color:var(--amber);color:var(--amber)}
 .mode-live{background:var(--red-dim);border-color:var(--red);color:var(--red)}
-.mode-backtest{background:var(--blue-dim);border-color:var(--blue);color:var(--blue)}
 .cb-indicator{display:flex;align-items:center;gap:6px;font-size:12px}
 .dot{width:8px;height:8px;border-radius:50%;background:var(--green);animation:pulse 2s infinite}
 .dot.danger{background:var(--red);animation:pulse-red 1s infinite}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
 @keyframes pulse-red{0%,100%{box-shadow:0 0 0 0 rgba(239,68,68,.4)}70%{box-shadow:0 0 0 6px rgba(239,68,68,0)}}
+
+/* Language toggle */
+.lang-btn{font-family:'Space Mono',monospace;font-size:11px;padding:4px 10px;border-radius:4px;border:1px solid var(--border2);background:transparent;color:var(--muted);cursor:pointer;transition:all .15s;letter-spacing:.05em}
+.lang-btn:hover{border-color:var(--blue);color:var(--blue)}
+
+/* API config bar */
+.api-bar{display:flex;align-items:center;gap:8px}
+.api-input{font-family:'Space Mono',monospace;font-size:11px;background:var(--bg);border:1px solid var(--border2);color:var(--text);padding:4px 10px;border-radius:4px;width:200px;outline:none}
+.api-input:focus{border-color:var(--blue)}
+.api-status{font-size:11px;font-family:'Space Mono',monospace}
+.api-ok{color:var(--green)}.api-err{color:var(--red)}.api-checking{color:var(--amber)}
 
 nav{background:var(--surface);border-right:1px solid var(--border);padding:16px 0;display:flex;flex-direction:column;gap:2px}
 .nav-item{display:flex;align-items:center;gap:10px;padding:9px 20px;cursor:pointer;font-size:13px;color:var(--muted);border-left:2px solid transparent;transition:all .15s}
@@ -44,12 +52,9 @@ nav{background:var(--surface);border-right:1px solid var(--border);padding:16px 
 .nav-divider{height:1px;background:var(--border);margin:8px 16px}
 
 main{padding:24px;overflow-y:auto;display:flex;flex-direction:column;gap:24px}
-
-/* ── Cards ── */
 .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:20px}
 .card-title{font-family:'Space Mono',monospace;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:16px}
 
-/* ── Metric grid ── */
 .metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
 .metric{background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:16px}
 .metric-label{font-size:11px;color:var(--muted);letter-spacing:.05em;text-transform:uppercase;margin-bottom:6px}
@@ -57,7 +62,6 @@ main{padding:24px;overflow-y:auto;display:flex;flex-direction:column;gap:24px}
 .metric-sub{font-size:11px;color:var(--muted);margin-top:4px}
 .pos{color:var(--green)}.neg{color:var(--red)}.neutral{color:var(--amber)}
 
-/* ── Table ── */
 .tbl-wrap{overflow-x:auto}
 table{width:100%;border-collapse:collapse}
 th{font-family:'Space Mono',monospace;font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim);padding:8px 12px;text-align:left;border-bottom:1px solid var(--border)}
@@ -70,14 +74,12 @@ tr:hover td{background:rgba(255,255,255,.02)}
 .strategy-tag{font-size:10px;padding:2px 7px;border-radius:3px;background:var(--blue-dim);color:var(--blue);font-family:'Space Mono',monospace}
 .tier-s{color:#f59e0b;font-weight:700}.tier-a{color:#a855f7}.tier-b{color:var(--muted)}
 
-/* ── Collector health ── */
 .collectors{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
 .collector-row{display:flex;align-items:center;justify-content:space-between;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:12px 16px}
 .collector-name{font-family:'Space Mono',monospace;font-size:12px}
 .collector-stats{display:flex;gap:16px;font-size:11px;color:var(--muted)}
 .health-ok{color:var(--green)}.health-bad{color:var(--red)}
 
-/* ── Controls ── */
 .controls{display:flex;gap:10px;flex-wrap:wrap}
 .btn{font-family:'Space Mono',monospace;font-size:11px;letter-spacing:.06em;padding:8px 16px;border-radius:var(--radius);border:1px solid;cursor:pointer;transition:all .15s;text-transform:uppercase}
 .btn-green{background:var(--green-dim);border-color:var(--green);color:var(--green)}
@@ -88,30 +90,45 @@ tr:hover td{background:rgba(255,255,255,.02)}
 .btn-amber:hover{background:var(--amber);color:#000}
 .btn-blue{background:var(--blue-dim);border-color:var(--blue);color:var(--blue)}
 .btn-blue:hover{background:var(--blue);color:#fff}
-.btn:disabled{opacity:.4;cursor:not-allowed}
+.btn-sm{padding:4px 10px;font-size:10px}
 
-/* ── Equity chart ── */
 #eq-canvas{width:100%;height:180px}
-.chart-placeholder{height:180px;display:flex;align-items:center;justify-content:center;color:var(--dim);font-family:'Space Mono',monospace;font-size:12px}
-
-/* ── Toast ── */
-.toast-container{position:fixed;bottom:24px;right:24px;display:flex;flex-direction:column;gap:8px;z-index:10000}
-.toast{font-size:12px;padding:10px 16px;border-radius:var(--radius);border:1px solid;font-family:'Space Mono',monospace;animation:slide-in .2s ease;max-width:300px}
-.toast-ok{background:var(--green-dim);border-color:var(--green);color:var(--green)}
-.toast-err{background:var(--red-dim);border-color:var(--red);color:var(--red)}
-@keyframes slide-in{from{transform:translateX(60px);opacity:0}to{transform:none;opacity:1}}
-
-/* ── Misc ── */
 .section{display:none}.section.active{display:contents}
 .empty{color:var(--dim);font-family:'Space Mono',monospace;font-size:12px;padding:24px;text-align:center}
-.risk-bar{height:4px;border-radius:2px;background:var(--border);overflow:hidden;margin-top:8px}
-.risk-fill{height:100%;border-radius:2px;transition:width .5s;background:var(--green)}
+
+/* API config notice */
+.api-notice{background:rgba(59,130,246,.08);border:1px solid rgba(59,130,246,.3);border-radius:var(--radius-lg);padding:20px;margin-bottom:8px}
+.api-notice h3{font-family:'Space Mono',monospace;font-size:12px;color:var(--blue);margin-bottom:12px;letter-spacing:.08em}
+.api-notice p{font-size:13px;color:var(--muted);line-height:1.7;margin-bottom:8px}
+.api-notice code{font-family:'Space Mono',monospace;font-size:11px;background:rgba(255,255,255,.06);padding:2px 6px;border-radius:3px;color:var(--text)}
+.api-list{list-style:none;padding:0}
+.api-list li{font-size:13px;color:var(--muted);padding:6px 0;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:flex-start;gap:16px}
+.api-list li:last-child{border-bottom:none}
+.api-list .api-key{font-family:'Space Mono',monospace;font-size:11px;color:var(--amber)}
+.api-list .api-desc{flex:1}
+.api-list a{color:var(--blue);text-decoration:none;font-size:11px;font-family:'Space Mono',monospace;white-space:nowrap}
+.api-list a:hover{text-decoration:underline}
+
+.toast-container{position:fixed;bottom:24px;right:24px;display:flex;flex-direction:column;gap:8px;z-index:10000}
+.toast{font-size:12px;padding:10px 16px;border-radius:var(--radius);border:1px solid;font-family:'Space Mono',monospace;animation:slide-in .2s ease;max-width:320px}
+.toast-ok{background:var(--green-dim);border-color:var(--green);color:var(--green)}
+.toast-err{background:var(--red-dim);border-color:var(--red);color:var(--red)}
+.toast-info{background:var(--blue-dim);border-color:var(--blue);color:var(--blue)}
+@keyframes slide-in{from{transform:translateX(60px);opacity:0}to{transform:none;opacity:1}}
+
 .confirm-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:1000;align-items:center;justify-content:center}
 .confirm-overlay.show{display:flex}
 .confirm-box{background:var(--surface);border:1px solid var(--border2);border-radius:var(--radius-lg);padding:28px;max-width:420px;width:90%}
 .confirm-title{font-family:'Space Mono',monospace;font-size:14px;margin-bottom:12px;color:var(--amber)}
 .confirm-msg{font-size:13px;color:var(--muted);margin-bottom:20px;line-height:1.6}
 .confirm-actions{display:flex;gap:10px;justify-content:flex-end}
+
+/* Responsive */
+@media(max-width:768px){
+  .shell{grid-template-columns:1fr}
+  nav{display:none}
+  .metrics{grid-template-columns:repeat(2,1fr)}
+}
 </style>
 </head>
 <body>
@@ -120,123 +137,338 @@ tr:hover td{background:rgba(255,255,255,.02)}
 <header>
   <div class="logo">POLY<span>TRADER</span> <span style="color:var(--dim)">// ctrl</span></div>
   <div class="header-right">
+    <!-- API URL config -->
+    <div class="api-bar">
+      <span class="api-status api-checking" id="api-status-icon">⬤</span>
+      <input class="api-input" id="api-url-input" placeholder="http://your-server:8088" value=""/>
+      <button class="btn btn-blue btn-sm" onclick="saveApiUrl()" data-zh="连接" data-en="Connect">连接</button>
+    </div>
     <div class="cb-indicator">
       <div class="dot" id="cb-dot"></div>
-      <span id="cb-label" style="font-family:'Space Mono',monospace;font-size:11px;color:var(--muted)">SYSTEM OK</span>
+      <span id="cb-label" style="font-family:'Space Mono',monospace;font-size:11px;color:var(--muted)">OK</span>
     </div>
     <span class="mode-badge mode-paper" id="mode-badge">PAPER</span>
+    <!-- Language toggle -->
+    <button class="lang-btn" id="lang-btn" onclick="toggleLang()">EN</button>
   </div>
 </header>
 
 <nav>
-  <div class="nav-item active" data-section="overview" onclick="nav(this,'overview')"><span class="nav-icon">◈</span>Overview</div>
-  <div class="nav-item" data-section="positions" onclick="nav(this,'positions')"><span class="nav-icon">◎</span>Positions</div>
-  <div class="nav-item" data-section="trades" onclick="nav(this,'trades')"><span class="nav-icon">◷</span>Trades</div>
-  <div class="nav-item" data-section="whales" onclick="nav(this,'whales')"><span class="nav-icon">◉</span>Whales</div>
-  <div class="nav-item" data-section="collectors" onclick="nav(this,'collectors')"><span class="nav-icon">◌</span>Collectors</div>
+  <div class="nav-item active" onclick="nav(this,'overview')"><span class="nav-icon">◈</span><span data-zh="总览" data-en="Overview">总览</span></div>
+  <div class="nav-item" onclick="nav(this,'positions')"><span class="nav-icon">◎</span><span data-zh="持仓" data-en="Positions">持仓</span></div>
+  <div class="nav-item" onclick="nav(this,'trades')"><span class="nav-icon">◷</span><span data-zh="交易记录" data-en="Trades">交易记录</span></div>
+  <div class="nav-item" onclick="nav(this,'whales')"><span class="nav-icon">◉</span><span data-zh="大户追踪" data-en="Whales">大户追踪</span></div>
+  <div class="nav-item" onclick="nav(this,'collectors')"><span class="nav-icon">◌</span><span data-zh="数据采集器" data-en="Collectors">数据采集器</span></div>
   <div class="nav-divider"></div>
-  <div class="nav-item" data-section="controls" onclick="nav(this,'controls')"><span class="nav-icon">⌘</span>Controls</div>
+  <div class="nav-item" onclick="nav(this,'apikeys')"><span class="nav-icon">🔑</span><span data-zh="API配置指南" data-en="API Key Guide">API配置指南</span></div>
+  <div class="nav-item" onclick="nav(this,'controls')"><span class="nav-icon">⌘</span><span data-zh="控制" data-en="Controls">控制</span></div>
 </nav>
 
 <main>
 
-<!-- OVERVIEW -->
+<!-- ── OVERVIEW ── -->
 <div id="sec-overview" class="section active">
   <div class="metrics" id="metrics">
-    <div class="metric"><div class="metric-label">Total Balance</div><div class="metric-value" id="m-balance">—</div><div class="metric-sub">available capital</div></div>
-    <div class="metric"><div class="metric-label">Daily P&L</div><div class="metric-value" id="m-pnl">—</div><div class="metric-sub" id="m-pnl-pct">—</div></div>
-    <div class="metric"><div class="metric-label">Exposure</div><div class="metric-value" id="m-exposure">—</div><div class="metric-sub" id="m-positions">— positions</div></div>
-    <div class="metric"><div class="metric-label">Win Rate Today</div><div class="metric-value" id="m-wr">—</div><div class="metric-sub" id="m-trades">— trades</div></div>
+    <div class="metric">
+      <div class="metric-label" data-zh="总资产" data-en="Total Balance">总资产</div>
+      <div class="metric-value" id="m-balance">—</div>
+      <div class="metric-sub" data-zh="可用资金" data-en="available capital">可用资金</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label" data-zh="今日盈亏" data-en="Daily P&L">今日盈亏</div>
+      <div class="metric-value" id="m-pnl">—</div>
+      <div class="metric-sub" id="m-pnl-pct">—</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label" data-zh="仓位占比" data-en="Exposure">仓位占比</div>
+      <div class="metric-value" id="m-exposure">—</div>
+      <div class="metric-sub" id="m-positions" data-zh="— 个持仓" data-en="— positions">— 个持仓</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label" data-zh="今日胜率" data-en="Win Rate Today">今日胜率</div>
+      <div class="metric-value" id="m-wr">—</div>
+      <div class="metric-sub" id="m-trades">—</div>
+    </div>
   </div>
-
   <div class="card">
-    <div class="card-title">Equity</div>
+    <div class="card-title" data-zh="资产曲线" data-en="Equity Curve">资产曲线</div>
     <canvas id="eq-canvas"></canvas>
   </div>
-
   <div class="card">
-    <div class="card-title">30-Day Performance</div>
+    <div class="card-title" data-zh="30日绩效" data-en="30-Day Performance">30日绩效</div>
     <div class="metrics" style="grid-template-columns:repeat(3,1fr)">
-      <div class="metric"><div class="metric-label">Total P&L</div><div class="metric-value" id="p-pnl">—</div></div>
-      <div class="metric"><div class="metric-label">Win Rate</div><div class="metric-value" id="p-wr">—</div></div>
-      <div class="metric"><div class="metric-label">Total Trades</div><div class="metric-value" id="p-trades">—</div></div>
+      <div class="metric"><div class="metric-label" data-zh="总盈亏" data-en="Total P&L">总盈亏</div><div class="metric-value" id="p-pnl">—</div></div>
+      <div class="metric"><div class="metric-label" data-zh="胜率" data-en="Win Rate">胜率</div><div class="metric-value" id="p-wr">—</div></div>
+      <div class="metric"><div class="metric-label" data-zh="总交易次数" data-en="Total Trades">总交易次数</div><div class="metric-value" id="p-trades">—</div></div>
     </div>
   </div>
 </div>
 
-<!-- POSITIONS -->
+<!-- ── POSITIONS ── -->
 <div id="sec-positions" class="section">
   <div class="card">
-    <div class="card-title">Open Positions</div>
+    <div class="card-title" data-zh="当前持仓" data-en="Open Positions">当前持仓</div>
     <div class="tbl-wrap">
-      <table><thead><tr>
-        <th>Market</th><th>Outcome</th><th>Entry</th><th>Current</th><th>Size</th><th>Unreal. P&L</th><th>TP / SL</th><th>Strategy</th><th>Action</th>
-      </tr></thead>
-      <tbody id="pos-table"><tr><td colspan="9" class="empty">Loading…</td></tr></tbody>
+      <table>
+        <thead><tr>
+          <th data-zh="市场" data-en="Market">市场</th>
+          <th data-zh="结果" data-en="Outcome">结果</th>
+          <th data-zh="入场价" data-en="Entry">入场价</th>
+          <th data-zh="当前价" data-en="Current">当前价</th>
+          <th data-zh="金额" data-en="Size">金额</th>
+          <th data-zh="未实现盈亏" data-en="Unreal. P&L">未实现盈亏</th>
+          <th data-zh="止盈/止损" data-en="TP / SL">止盈/止损</th>
+          <th data-zh="策略" data-en="Strategy">策略</th>
+          <th data-zh="操作" data-en="Action">操作</th>
+        </tr></thead>
+        <tbody id="pos-table"><tr><td colspan="9" class="empty" data-zh="加载中…" data-en="Loading…">加载中…</td></tr></tbody>
       </table>
     </div>
   </div>
 </div>
 
-<!-- TRADES -->
+<!-- ── TRADES ── -->
 <div id="sec-trades" class="section">
   <div class="card">
-    <div class="card-title">Today's Trades</div>
+    <div class="card-title" data-zh="今日交易记录" data-en="Today's Trades">今日交易记录</div>
     <div class="tbl-wrap">
-      <table><thead><tr>
-        <th>Market</th><th>Outcome</th><th>Entry</th><th>Exit</th><th>P&L</th><th>Reason</th><th>Strategy</th><th>Opened</th>
-      </tr></thead>
-      <tbody id="trades-table"><tr><td colspan="8" class="empty">Loading…</td></tr></tbody>
+      <table>
+        <thead><tr>
+          <th data-zh="市场" data-en="Market">市场</th>
+          <th data-zh="结果" data-en="Outcome">结果</th>
+          <th data-zh="入场价" data-en="Entry">入场价</th>
+          <th data-zh="出场价" data-en="Exit">出场价</th>
+          <th data-zh="盈亏" data-en="P&L">盈亏</th>
+          <th data-zh="平仓原因" data-en="Reason">平仓原因</th>
+          <th data-zh="策略" data-en="Strategy">策略</th>
+          <th data-zh="开仓时间" data-en="Opened">开仓时间</th>
+        </tr></thead>
+        <tbody id="trades-table"><tr><td colspan="8" class="empty" data-zh="加载中…" data-en="Loading…">加载中…</td></tr></tbody>
       </table>
     </div>
   </div>
 </div>
 
-<!-- WHALES -->
+<!-- ── WHALES ── -->
 <div id="sec-whales" class="section">
   <div class="card">
-    <div class="card-title">Recent Whale Activity</div>
+    <div class="card-title" data-zh="大户最新动向" data-en="Recent Whale Activity">大户最新动向</div>
     <div class="tbl-wrap">
-      <table><thead><tr>
-        <th>Whale</th><th>Tier</th><th>Action</th><th>Market</th><th>Amount</th><th>Price</th><th>Win Rate</th><th>Time</th>
-      </tr></thead>
-      <tbody id="whale-table"><tr><td colspan="8" class="empty">Loading…</td></tr></tbody>
+      <table>
+        <thead><tr>
+          <th data-zh="大户名称" data-en="Whale">大户名称</th>
+          <th data-zh="级别" data-en="Tier">级别</th>
+          <th data-zh="操作" data-en="Action">操作</th>
+          <th data-zh="市场" data-en="Market">市场</th>
+          <th data-zh="金额" data-en="Amount">金额</th>
+          <th data-zh="价格" data-en="Price">价格</th>
+          <th data-zh="历史胜率" data-en="Win Rate">历史胜率</th>
+          <th data-zh="时间" data-en="Time">时间</th>
+        </tr></thead>
+        <tbody id="whale-table"><tr><td colspan="8" class="empty" data-zh="加载中…" data-en="Loading…">加载中…</td></tr></tbody>
       </table>
     </div>
   </div>
 </div>
 
-<!-- COLLECTORS -->
+<!-- ── COLLECTORS ── -->
 <div id="sec-collectors" class="section">
   <div class="card">
-    <div class="card-title">Data Collector Health</div>
-    <div class="collectors" id="collector-grid"><div class="empty">Loading…</div></div>
+    <div class="card-title" data-zh="数据采集器状态" data-en="Data Collector Health">数据采集器状态</div>
+    <div class="collectors" id="collector-grid"><div class="empty" data-zh="加载中…" data-en="Loading…">加载中…</div></div>
   </div>
 </div>
 
-<!-- CONTROLS -->
+<!-- ── API KEY GUIDE ── -->
+<div id="sec-apikeys" class="section">
+
+  <!-- Connection config -->
+  <div class="api-notice">
+    <h3 data-zh="⚙ API后端地址配置" data-en="⚙ API Backend URL Config">⚙ API后端地址配置</h3>
+    <p data-zh="顶部栏输入框填写你的API后端地址，例如：" data-en="Enter your API backend URL in the top bar, e.g.:">
+      顶部栏输入框填写你的API后端地址，例如：
+    </p>
+    <p><code>http://your-server-ip:8088</code> &nbsp;或&nbsp; <code>http://localhost:8088</code></p>
+    <p style="margin-top:8px;font-size:12px;color:var(--amber)" data-zh="⚠ 如果看到 'Failed to fetch'，说明浏览器无法访问API。请确认服务器IP和端口8088已开放。" data-en="⚠ If you see 'Failed to fetch', the browser cannot reach the API. Make sure the server IP and port 8088 are accessible.">
+      ⚠ 如果看到 "Failed to fetch"，说明浏览器无法访问API。请确认服务器IP和端口8088已开放。
+    </p>
+  </div>
+
+  <!-- Why APIs needed -->
+  <div class="api-notice">
+    <h3 data-zh="📡 为什么需要这些API？" data-en="📡 Why are these APIs needed?">📡 为什么需要这些API？</h3>
+    <p data-zh="本系统通过实时新闻、体育赛事数据和链上大户动向，提前发现Polymarket市场的错误定价机会。以下API均有免费套餐，每月足够使用。" data-en="The system finds mispriced Polymarket markets using real-time news, live sports scores, and on-chain whale tracking. All APIs below have free tiers sufficient for personal use.">
+      本系统通过实时新闻、体育赛事数据和链上大户动向，提前发现Polymarket市场的错误定价机会。以下API均有免费套餐，每月足够使用。
+    </p>
+  </div>
+
+  <!-- Required APIs -->
+  <div class="card">
+    <div class="card-title" data-zh="必需配置" data-en="Required Configuration">必需配置</div>
+    <ul class="api-list">
+      <li>
+        <div class="api-desc">
+          <div style="font-weight:500;margin-bottom:4px" data-zh="Polymarket 钱包私钥" data-en="Polymarket Wallet Private Key">Polymarket 钱包私钥</div>
+          <div style="font-size:12px" data-zh="用于签名链上交易。在MetaMask或任意Polygon钱包导出私钥。" data-en="Used to sign on-chain trades. Export from MetaMask or any Polygon wallet.">用于签名链上交易。在MetaMask或任意Polygon钱包导出私钥。</div>
+          <div style="margin-top:6px;font-size:11px;color:var(--red)" data-zh="⚠ 切勿将私钥提交到Git！" data-en="⚠ Never commit private key to Git!">⚠ 切勿将私钥提交到Git！</div>
+        </div>
+        <div style="text-align:right">
+          <div class="api-key">POLYMARKET__PRIVATE_KEY</div>
+          <a href="https://polymarket.com/profile" target="_blank">polymarket.com/profile →</a>
+        </div>
+      </li>
+      <li>
+        <div class="api-desc">
+          <div style="font-weight:500;margin-bottom:4px" data-zh="Polymarket CLOB API凭证" data-en="Polymarket CLOB API Credentials">Polymarket CLOB API凭证</div>
+          <div style="font-size:12px" data-zh="用于下单。登录Polymarket → 设置 → API Keys，点击 Generate API Key。" data-en="For order placement. Login to Polymarket → Settings → API Keys → Generate API Key.">用于下单。登录Polymarket → 设置 → API Keys，点击 Generate API Key。</div>
+        </div>
+        <div style="text-align:right">
+          <div class="api-key">POLYMARKET__API_KEY<br>POLYMARKET__API_SECRET<br>POLYMARKET__API_PASSPHRASE</div>
+          <a href="https://polymarket.com/settings" target="_blank">polymarket.com/settings →</a>
+        </div>
+      </li>
+    </ul>
+  </div>
+
+  <!-- News APIs -->
+  <div class="card">
+    <div class="card-title" data-zh="新闻信号（推荐配置）" data-en="News Signals (Recommended)">新闻信号（推荐配置）</div>
+    <ul class="api-list">
+      <li>
+        <div class="api-desc">
+          <div style="font-weight:500;margin-bottom:4px">NewsAPI</div>
+          <div style="font-size:12px" data-zh="每月10万次免费请求。注册后直接获得API Key。" data-en="100k free requests/month. Get API key immediately after signup.">每月10万次免费请求。注册后直接获得API Key。</div>
+        </div>
+        <div style="text-align:right">
+          <div class="api-key">NEWS__NEWSAPI_KEY</div>
+          <a href="https://newsapi.org/register" target="_blank">newsapi.org/register →</a>
+        </div>
+      </li>
+      <li>
+        <div class="api-desc">
+          <div style="font-weight:500;margin-bottom:4px">Twitter/X API v2</div>
+          <div style="font-size:12px" data-zh="免费版支持过滤流（breaking news实时推送）。需要开发者账号审核（1-3天）。" data-en="Free tier supports filtered stream for breaking news. Developer account review takes 1-3 days.">免费版支持过滤流（breaking news实时推送）。需要开发者账号审核（1-3天）。</div>
+        </div>
+        <div style="text-align:right">
+          <div class="api-key">NEWS__TWITTER_BEARER_TOKEN</div>
+          <a href="https://developer.x.com/en/portal/dashboard" target="_blank">developer.x.com →</a>
+        </div>
+      </li>
+      <li>
+        <div class="api-desc">
+          <div style="font-weight:500;margin-bottom:4px">GNews API</div>
+          <div style="font-size:12px" data-zh="每天100次免费请求，作为NewsAPI的补充。" data-en="100 free requests/day, as a supplement to NewsAPI.">每天100次免费请求，作为NewsAPI的补充。</div>
+        </div>
+        <div style="text-align:right">
+          <div class="api-key">NEWS__GNEWS_API_KEY</div>
+          <a href="https://gnews.io/register" target="_blank">gnews.io/register →</a>
+        </div>
+      </li>
+    </ul>
+  </div>
+
+  <!-- Sports APIs -->
+  <div class="card">
+    <div class="card-title" data-zh="体育赛事数据（推荐配置）" data-en="Sports Data (Recommended)">体育赛事数据（推荐配置）</div>
+    <ul class="api-list">
+      <li>
+        <div class="api-desc">
+          <div style="font-weight:500;margin-bottom:4px">API-Football (RapidAPI)</div>
+          <div style="font-size:12px" data-zh="实时足球比分、赔率。免费100次/天。在RapidAPI搜索 'API-Football' 订阅免费套餐。" data-en="Live football scores and odds. 100 free calls/day. Search 'API-Football' on RapidAPI and subscribe to free tier.">实时足球比分、赔率。免费100次/天。在RapidAPI搜索 "API-Football" 订阅免费套餐。</div>
+        </div>
+        <div style="text-align:right">
+          <div class="api-key">SPORTS__API_FOOTBALL_KEY</div>
+          <a href="https://rapidapi.com/api-sports/api/api-football" target="_blank">rapidapi.com →</a>
+        </div>
+      </li>
+      <li>
+        <div class="api-desc">
+          <div style="font-weight:500;margin-bottom:4px">The Odds API</div>
+          <div style="font-size:12px" data-zh="实时赔率数据。免费500次/月。注册后立即获得Key。" data-en="Real-time odds data. 500 free requests/month. Key provided immediately after signup.">实时赔率数据。免费500次/月。注册后立即获得Key。</div>
+        </div>
+        <div style="text-align:right">
+          <div class="api-key">SPORTS__ODDS_API_KEY</div>
+          <a href="https://the-odds-api.com/account" target="_blank">the-odds-api.com →</a>
+        </div>
+      </li>
+    </ul>
+  </div>
+
+  <!-- LLM APIs -->
+  <div class="card">
+    <div class="card-title" data-zh="AI信号分析（可选）" data-en="AI Signal Analysis (Optional)">AI信号分析（可选）</div>
+    <ul class="api-list">
+      <li>
+        <div class="api-desc">
+          <div style="font-weight:500;margin-bottom:4px">OpenAI API</div>
+          <div style="font-size:12px" data-zh="用于新闻方向判断（买涨/买跌）。使用gpt-4o-mini，成本极低（$0.15/百万tokens）。" data-en="Used for news direction inference (buy YES / buy NO). Uses gpt-4o-mini, very cheap at $0.15/1M tokens.">用于新闻方向判断（买涨/买跌）。使用gpt-4o-mini，成本极低（$0.15/百万tokens）。</div>
+        </div>
+        <div style="text-align:right">
+          <div class="api-key">SIGNAL__OPENAI_API_KEY</div>
+          <a href="https://platform.openai.com/api-keys" target="_blank">platform.openai.com →</a>
+        </div>
+      </li>
+    </ul>
+  </div>
+
+  <!-- Telegram -->
+  <div class="card">
+    <div class="card-title" data-zh="Telegram通知（强烈推荐）" data-en="Telegram Notifications (Highly Recommended)">Telegram通知（强烈推荐）</div>
+    <ul class="api-list">
+      <li>
+        <div class="api-desc">
+          <div style="font-weight:500;margin-bottom:4px" data-zh="Telegram Bot" data-en="Telegram Bot">Telegram Bot</div>
+          <div style="font-size:12px" data-zh="免费。步骤：① 在Telegram搜索 @BotFather → /newbot → 获得Token ② 搜索 @userinfobot 获得你的Chat ID ③ 填入.env" data-en="Free. Steps: ① Search @BotFather on Telegram → /newbot → get Token ② Search @userinfobot for your Chat ID ③ Add both to .env">
+            免费。步骤：<br>
+            ① 在Telegram搜索 <code>@BotFather</code> → /newbot → 获得Token<br>
+            ② 搜索 <code>@userinfobot</code> 获得你的Chat ID<br>
+            ③ 填入.env文件
+          </div>
+        </div>
+        <div style="text-align:right">
+          <div class="api-key">NOTIFICATION__TELEGRAM_BOT_TOKEN<br>NOTIFICATION__TELEGRAM_CHAT_ID</div>
+          <a href="https://t.me/BotFather" target="_blank">t.me/BotFather →</a>
+        </div>
+      </li>
+    </ul>
+  </div>
+
+  <!-- How to set -->
+  <div class="api-notice">
+    <h3 data-zh="📝 如何填写API Key？" data-en="📝 How to add API keys?">📝 如何填写API Key？</h3>
+    <p data-zh="编辑服务器上的 .env 文件：" data-en="Edit the .env file on your server:">编辑服务器上的 .env 文件：</p>
+    <p style="margin-top:8px"><code>nano /opt/polymarket_trader/.env</code></p>
+    <p style="margin-top:8px" data-zh="填写后重启服务：" data-en="After editing, restart services:">填写后重启服务：</p>
+    <p style="margin-top:8px"><code>docker compose restart app</code></p>
+    <p style="margin-top:8px;font-size:12px;color:var(--muted)" data-zh="不配置API也可运行，系统会跳过对应数据源，仅使用已配置的来源产生信号。" data-en="The system runs without all APIs — it skips missing sources and only generates signals from configured ones.">
+      不配置API也可运行，系统会跳过对应数据源，仅使用已配置的来源产生信号。
+    </p>
+  </div>
+</div>
+
+<!-- ── CONTROLS ── -->
 <div id="sec-controls" class="section">
   <div class="card">
-    <div class="card-title">Trading Controls</div>
+    <div class="card-title" data-zh="交易控制" data-en="Trading Controls">交易控制</div>
     <div class="controls">
-      <button class="btn btn-amber" onclick="confirmAction('pause','Pause all new position opening?',()=>api('POST','/api/pause'))">⏸ Pause</button>
-      <button class="btn btn-green" onclick="confirmAction('resume','Resume trading?',()=>api('POST','/api/resume'))">▶ Resume</button>
-      <button class="btn btn-red" onclick="confirmAction('close-all','CLOSE ALL open positions at market price?',()=>api('POST','/api/positions/close-all'))">✕ Close All</button>
+      <button class="btn btn-amber" onclick="confirmAction('pause','暂停所有新开仓操作？',()=>api('POST','/api/pause'))" data-zh="⏸ 暂停" data-en="⏸ Pause">⏸ 暂停</button>
+      <button class="btn btn-green" onclick="confirmAction('resume','恢复交易？',()=>api('POST','/api/resume'))" data-zh="▶ 恢复" data-en="▶ Resume">▶ 恢复</button>
+      <button class="btn btn-red" onclick="confirmAction('close-all','平掉所有持仓？此操作不可撤销！',()=>api('POST','/api/positions/close-all'))" data-zh="✕ 全部平仓" data-en="✕ Close All">✕ 全部平仓</button>
     </div>
   </div>
   <div class="card">
-    <div class="card-title">Mode</div>
+    <div class="card-title" data-zh="交易模式" data-en="Trading Mode">交易模式</div>
     <div class="controls">
-      <button class="btn btn-amber" onclick="setMode('paper')">Paper Mode</button>
-      <button class="btn btn-red" onclick="confirmAction('live-mode','Switch to LIVE trading? Real money will be used.',()=>setMode('live'))">Live Mode</button>
+      <button class="btn btn-amber" onclick="setMode('paper')" data-zh="模拟交易" data-en="Paper Mode">模拟交易</button>
+      <button class="btn btn-red" onclick="confirmAction('live-mode','切换到真实交易？将使用真实资金！',()=>setMode('live'))" data-zh="真实交易" data-en="Live Mode">真实交易</button>
     </div>
   </div>
   <div class="card">
-    <div class="card-title">Risk Level</div>
+    <div class="card-title" data-zh="风险等级" data-en="Risk Level">风险等级</div>
     <div class="controls">
-      <button class="btn btn-blue" onclick="setRisk('conservative')">Conservative</button>
-      <button class="btn btn-green" onclick="setRisk('moderate')">Moderate</button>
-      <button class="btn btn-amber" onclick="setRisk('aggressive')">Aggressive</button>
+      <button class="btn btn-blue" onclick="setRisk('conservative')" data-zh="保守" data-en="Conservative">保守</button>
+      <button class="btn btn-green" onclick="setRisk('moderate')" data-zh="适中" data-en="Moderate">适中</button>
+      <button class="btn btn-amber" onclick="setRisk('aggressive')" data-zh="激进" data-en="Aggressive">激进</button>
     </div>
   </div>
 </div>
@@ -247,11 +479,11 @@ tr:hover td{background:rgba(255,255,255,.02)}
 <!-- Confirm dialog -->
 <div class="confirm-overlay" id="confirm-overlay">
   <div class="confirm-box">
-    <div class="confirm-title" id="confirm-title">Confirm</div>
+    <div class="confirm-title" id="confirm-title">确认操作</div>
     <div class="confirm-msg" id="confirm-msg"></div>
     <div class="confirm-actions">
-      <button class="btn btn-blue" onclick="dismissConfirm()">Cancel</button>
-      <button class="btn btn-red" id="confirm-ok" onclick="runConfirm()">Confirm</button>
+      <button class="btn btn-blue" onclick="dismissConfirm()" data-zh="取消" data-en="Cancel">取消</button>
+      <button class="btn btn-red" onclick="runConfirm()" data-zh="确认" data-en="Confirm">确认</button>
     </div>
   </div>
 </div>
@@ -259,12 +491,73 @@ tr:hover td{background:rgba(255,255,255,.02)}
 <div class="toast-container" id="toasts"></div>
 
 <script>
-const API = 'http://localhost:8088';
-let equityData = [];
-let confirmCallback = null;
-let currentSection = 'overview';
+// ── Language ──────────────────────────────────────────────────────────────────
+let LANG = localStorage.getItem('lang') || 'zh';
+
+function toggleLang() {
+  LANG = LANG === 'zh' ? 'en' : 'zh';
+  localStorage.setItem('lang', LANG);
+  applyLang();
+}
+
+function applyLang() {
+  const btn = document.getElementById('lang-btn');
+  btn.textContent = LANG === 'zh' ? 'EN' : '中文';
+  document.querySelectorAll('[data-zh]').forEach(el => {
+    // Don't override elements with child elements (complex HTML)
+    if (el.children.length === 0) {
+      el.textContent = LANG === 'zh' ? el.dataset.zh : el.dataset.en;
+    }
+  });
+  // Update document title
+  document.title = LANG === 'zh' ? 'Polymarket Trader · 控制台' : 'Polymarket Trader · Control Room';
+}
+
+// ── API URL detection ─────────────────────────────────────────────────────────
+// Smart: try current hostname first, then localhost, then let user set it
+function getDefaultApiUrl() {
+  const saved = localStorage.getItem('apiUrl');
+  if (saved) return saved;
+  // If accessed via hostname (not localhost), try same host on port 8088
+  const host = window.location.hostname;
+  if (host && host !== 'localhost' && host !== '127.0.0.1') {
+    return `http://${host}:8088`;
+  }
+  return 'http://localhost:8088';
+}
+
+let API = getDefaultApiUrl();
+
+function saveApiUrl() {
+  const val = document.getElementById('api-url-input').value.trim().replace(/\/$/, '');
+  if (!val) return;
+  API = val;
+  localStorage.setItem('apiUrl', val);
+  checkApiHealth();
+  toast(LANG === 'zh' ? `已连接: ${val}` : `Connected: ${val}`, 'info');
+  // Reconnect WebSocket
+  connectWS();
+}
+
+async function checkApiHealth() {
+  const icon = document.getElementById('api-status-icon');
+  icon.className = 'api-status api-checking';
+  icon.textContent = '⬤';
+  try {
+    const r = await fetch(API + '/health', {signal: AbortSignal.timeout(4000)});
+    if (r.ok) {
+      icon.className = 'api-status api-ok';
+      refreshSection(currentSection);
+      return true;
+    }
+  } catch(e) {}
+  icon.className = 'api-status api-err';
+  return false;
+}
 
 // ── Navigation ────────────────────────────────────────────────────────────────
+let currentSection = 'overview';
+
 function nav(el, section) {
   document.querySelectorAll('.nav-item').forEach(e => e.classList.remove('active'));
   el.classList.add('active');
@@ -280,59 +573,71 @@ function refreshSection(s) {
   else if (s === 'trades') fetchTrades();
   else if (s === 'whales') fetchWhales();
   else if (s === 'collectors') fetchStatus();
+  // apikeys and controls don't need data
 }
 
 // ── API calls ─────────────────────────────────────────────────────────────────
 async function api(method, path, body) {
   try {
     const r = await fetch(API + path, {
-      method, headers: {'Content-Type':'application/json'},
+      method,
+      headers: {'Content-Type': 'application/json'},
       body: body ? JSON.stringify(body) : undefined,
+      signal: AbortSignal.timeout(8000),
     });
-    if (!r.ok) throw new Error(await r.text());
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
     return await r.json();
   } catch(e) {
-    toast('Error: ' + e.message, 'err');
+    const msg = LANG === 'zh'
+      ? `请求失败: ${e.message}（检查API地址是否正确）`
+      : `Request failed: ${e.message} (check API URL)`;
+    toast(msg, 'err');
     throw e;
   }
 }
 
-// ── Fetch portfolio ───────────────────────────────────────────────────────────
+// ── Data fetchers ─────────────────────────────────────────────────────────────
+let equityData = [];
+
 async function fetchPortfolio() {
   try {
     const p = await api('GET', '/api/portfolio');
-    // Metrics
     document.getElementById('m-balance').textContent = '$' + p.total_balance.toLocaleString('en', {maximumFractionDigits:2});
     const pnlEl = document.getElementById('m-pnl');
     pnlEl.textContent = (p.daily_pnl >= 0 ? '+$' : '-$') + Math.abs(p.daily_pnl).toFixed(2);
     pnlEl.className = 'metric-value ' + (p.daily_pnl >= 0 ? 'pos' : 'neg');
     document.getElementById('m-pnl-pct').textContent = (p.daily_pnl_pct >= 0 ? '+' : '') + (p.daily_pnl_pct*100).toFixed(2) + '%';
     document.getElementById('m-exposure').textContent = (p.exposure_pct*100).toFixed(1) + '%';
-    document.getElementById('m-positions').textContent = p.positions.length + ' positions';
+    const posLabel = LANG === 'zh' ? `${p.positions.length} 个持仓` : `${p.positions.length} positions`;
+    document.getElementById('m-positions').textContent = posLabel;
     const total = p.wins_today + p.losses_today;
     document.getElementById('m-wr').textContent = total ? Math.round(p.wins_today/total*100) + '%' : '—';
-    document.getElementById('m-trades').textContent = total + ' trades';
+    const tradesLabel = LANG === 'zh'
+      ? `${total} 笔 (${p.wins_today}胜/${p.losses_today}负)`
+      : `${total} trades (${p.wins_today}W/${p.losses_today}L)`;
+    document.getElementById('m-trades').textContent = tradesLabel;
 
-    // Equity mini chart
     equityData.push({t: Date.now(), v: p.total_balance});
     if (equityData.length > 120) equityData.shift();
     drawEquity();
 
     // Positions table
     const tbody = document.getElementById('pos-table');
-    if (!p.positions.length) { tbody.innerHTML = '<tr><td colspan="9" class="empty">No open positions</td></tr>'; return; }
+    const noPos = LANG === 'zh' ? '暂无持仓' : 'No open positions';
+    if (!p.positions.length) { tbody.innerHTML = `<tr><td colspan="9" class="empty">${noPos}</td></tr>`; return; }
+    const closeLabel = LANG === 'zh' ? '平仓' : 'Close';
     tbody.innerHTML = p.positions.map(pos => {
       const pnl = pos.unrealized_pnl_pct;
       return `<tr>
-        <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${pos.market_question}">${pos.market_question.substring(0,55)}…</td>
+        <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${pos.market_question}">${pos.market_question.substring(0,50)}…</td>
         <td class="${pos.outcome==='Yes'?'outcome-yes':'outcome-no'}">${pos.outcome}</td>
         <td style="font-family:'Space Mono',monospace">${pos.entry_price.toFixed(4)}</td>
         <td style="font-family:'Space Mono',monospace">${pos.current_price.toFixed(4)}</td>
         <td>$${pos.size_usd.toFixed(0)}</td>
         <td class="${pnl>=0?'pnl-pos':'pnl-neg'}" style="font-family:'Space Mono',monospace">${(pnl>=0?'+':'')+(pnl*100).toFixed(2)}%</td>
         <td style="font-family:'Space Mono',monospace;font-size:11px;color:var(--muted)">${pos.take_profit.toFixed(3)} / ${pos.stop_loss.toFixed(3)}</td>
-        <td><span class="strategy-tag">${pos.strategy_name.substring(0,18)}</span></td>
-        <td><button class="btn btn-red" style="padding:4px 10px;font-size:10px" onclick="closePos('${pos.position_id}')">Close</button></td>
+        <td><span class="strategy-tag">${pos.strategy_name.substring(0,16)}</span></td>
+        <td><button class="btn btn-red btn-sm" onclick="closePos('${pos.position_id}')">${closeLabel}</button></td>
       </tr>`;
     }).join('');
   } catch(e) {}
@@ -342,18 +647,18 @@ async function fetchTrades() {
   try {
     const trades = await api('GET', '/api/trades');
     const tbody = document.getElementById('trades-table');
-    if (!trades.length) { tbody.innerHTML = '<tr><td colspan="8" class="empty">No trades today</td></tr>'; return; }
+    const noTrades = LANG === 'zh' ? '今日暂无交易' : 'No trades today';
+    if (!trades.length) { tbody.innerHTML = `<tr><td colspan="8" class="empty">${noTrades}</td></tr>`; return; }
     tbody.innerHTML = trades.map(t => {
-      const pnl = t.realized_pnl || 0;
-      const pct = t.realized_pnl_pct || 0;
+      const pnl = t.realized_pnl || 0, pct = t.realized_pnl_pct || 0;
       return `<tr>
-        <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${t.market_question}</td>
+        <td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${t.market_question}</td>
         <td class="${t.outcome==='Yes'?'outcome-yes':'outcome-no'}">${t.outcome}</td>
         <td style="font-family:'Space Mono',monospace">${t.entry_price?.toFixed(4)||'—'}</td>
         <td style="font-family:'Space Mono',monospace">${t.exit_price?.toFixed(4)||'—'}</td>
         <td class="${pnl>=0?'pnl-pos':'pnl-neg'}" style="font-family:'Space Mono',monospace">${pnl>=0?'+':''}\$${Math.abs(pnl).toFixed(2)} (${(pct>=0?'+':'')+(pct*100).toFixed(1)}%)</td>
         <td style="font-size:11px;color:var(--muted)">${t.close_reason||'open'}</td>
-        <td><span class="strategy-tag">${t.strategy_name.substring(0,18)}</span></td>
+        <td><span class="strategy-tag">${t.strategy_name.substring(0,16)}</span></td>
         <td style="font-family:'Space Mono',monospace;font-size:11px;color:var(--muted)">${t.opened_at?new Date(t.opened_at).toLocaleTimeString():''}</td>
       </tr>`;
     }).join('');
@@ -364,13 +669,14 @@ async function fetchWhales() {
   try {
     const whales = await api('GET', '/api/whales?limit=20');
     const tbody = document.getElementById('whale-table');
-    if (!whales.length) { tbody.innerHTML = '<tr><td colspan="8" class="empty">No recent whale activity</td></tr>'; return; }
+    const noWhales = LANG === 'zh' ? '暂无大户动向' : 'No recent whale activity';
+    if (!whales.length) { tbody.innerHTML = `<tr><td colspan="8" class="empty">${noWhales}</td></tr>`; return; }
     const tierEmoji = {S:'🐳',A:'🦈',B:'🐟'};
     tbody.innerHTML = whales.map(w => `<tr>
       <td style="font-family:'Space Mono',monospace">${w.whale_name}</td>
       <td class="tier-${w.whale_tier.toLowerCase()}">${tierEmoji[w.whale_tier]||''} ${w.whale_tier}</td>
-      <td style="color:${w.action==='buy'?'var(--green)':'var(--red)'}">${w.action.toUpperCase()}</td>
-      <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${w.market_question}</td>
+      <td style="color:${w.action==='buy'?'var(--green)':'var(--red)'}">${LANG==='zh'?(w.action==='buy'?'买入':'卖出'):w.action.toUpperCase()}</td>
+      <td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${w.market_question}</td>
       <td>$${w.amount_usd.toLocaleString('en',{maximumFractionDigits:0})}</td>
       <td style="font-family:'Space Mono',monospace">${w.price.toFixed(4)}</td>
       <td style="font-family:'Space Mono',monospace">${(w.whale_win_rate*100).toFixed(0)}%</td>
@@ -382,35 +688,36 @@ async function fetchWhales() {
 async function fetchStatus() {
   try {
     const s = await api('GET', '/api/status');
-    // Mode badge
     const badge = document.getElementById('mode-badge');
     badge.textContent = s.mode.toUpperCase();
     badge.className = 'mode-badge mode-' + s.mode;
-    // Circuit breaker
     const dot = document.getElementById('cb-dot');
     const lbl = document.getElementById('cb-label');
     if (s.circuit_breaker.active) {
-      dot.classList.add('danger'); lbl.textContent = 'CB ACTIVE';
+      dot.classList.add('danger');
+      lbl.textContent = LANG === 'zh' ? '熔断器激活' : 'CB ACTIVE';
     } else if (s.paused) {
-      dot.style.background = 'var(--amber)'; lbl.textContent = 'PAUSED';
+      dot.style.background = 'var(--amber)';
+      lbl.textContent = LANG === 'zh' ? '已暂停' : 'PAUSED';
     } else {
-      dot.classList.remove('danger'); dot.style.background = 'var(--green)'; lbl.textContent = 'SYSTEM OK';
+      dot.classList.remove('danger'); dot.style.background='var(--green)';
+      lbl.textContent = LANG === 'zh' ? '运行正常' : 'SYSTEM OK';
     }
-    // Collectors
     const grid = document.getElementById('collector-grid');
     const cols = Object.entries(s.collectors || {});
-    if (!cols.length) { grid.innerHTML = '<div class="empty">No collector data</div>'; return; }
+    const noData = LANG === 'zh' ? '暂无采集器数据' : 'No collector data';
+    if (!cols.length) { grid.innerHTML = `<div class="empty">${noData}</div>`; return; }
+    const statusLabel = LANG === 'zh' ? {msgs:'条消息', errs:'错误'} : {msgs:'msgs', errs:'errs'};
     grid.innerHTML = cols.map(([name, h]) => `
       <div class="collector-row">
         <div>
           <div class="collector-name">${name}</div>
-          <div style="font-size:10px;color:var(--muted);margin-top:4px">${h.last_error?'⚠ '+h.last_error.substring(0,40):''}</div>
+          <div style="font-size:10px;color:var(--muted);margin-top:4px">${h.last_error?'⚠ '+h.last_error.substring(0,35):''}</div>
         </div>
         <div style="display:flex;align-items:center;gap:12px">
           <div class="collector-stats">
-            <span>${(h.messages_total||0).toLocaleString()} msgs</span>
-            <span>${h.errors_total||0} errs</span>
-            <span>${h.latency_ms_avg?h.latency_ms_avg.toFixed(0)+'ms':''}</span>
+            <span>${(h.messages_total||0).toLocaleString()} ${statusLabel.msgs}</span>
+            <span>${h.errors_total||0} ${statusLabel.errs}</span>
           </div>
           <span class="${h.is_healthy?'health-ok':'health-bad'}" style="font-family:'Space Mono',monospace;font-size:11px">${h.status||'—'}</span>
         </div>
@@ -437,71 +744,57 @@ function drawEquity() {
   canvas.width = W; canvas.height = H;
   const ctx = canvas.getContext('2d');
   ctx.clearRect(0,0,W,H);
-
   const vals = equityData.map(d=>d.v);
   const min = Math.min(...vals), max = Math.max(...vals);
   const range = max - min || 1;
-  const pad = 20;
-
+  const pad = 24;
   const pts = equityData.map((d,i) => ({
-    x: pad + (i/(equityData.length-1)) * (W - pad*2),
-    y: H - pad - ((d.v - min)/range) * (H - pad*2),
+    x: pad + (i/(equityData.length-1)) * (W-pad*2),
+    y: H - pad - ((d.v-min)/range) * (H-pad*2),
   }));
-
-  // Grid lines
-  ctx.strokeStyle = '#1e2128'; ctx.lineWidth = 1;
-  for (let i=0; i<=4; i++) {
-    const y = pad + i * (H-pad*2)/4;
-    ctx.beginPath(); ctx.moveTo(pad,y); ctx.lineTo(W-pad,y); ctx.stroke();
+  ctx.strokeStyle='#1e2128'; ctx.lineWidth=1;
+  for(let i=0;i<=4;i++){
+    const y=pad+i*(H-pad*2)/4;
+    ctx.beginPath();ctx.moveTo(pad,y);ctx.lineTo(W-pad,y);ctx.stroke();
   }
-
-  // Fill
-  const grad = ctx.createLinearGradient(0,0,0,H);
-  const isUp = vals[vals.length-1] >= vals[0];
-  grad.addColorStop(0, isUp?'rgba(34,197,94,.25)':'rgba(239,68,68,.25)');
-  grad.addColorStop(1, 'rgba(0,0,0,0)');
-  ctx.beginPath();
-  ctx.moveTo(pts[0].x, H-pad);
-  pts.forEach(p => ctx.lineTo(p.x, p.y));
-  ctx.lineTo(pts[pts.length-1].x, H-pad);
-  ctx.closePath(); ctx.fillStyle = grad; ctx.fill();
-
-  // Line
-  ctx.beginPath();
-  pts.forEach((p,i) => i===0 ? ctx.moveTo(p.x,p.y) : ctx.lineTo(p.x,p.y));
-  ctx.strokeStyle = isUp ? '#22c55e' : '#ef4444';
-  ctx.lineWidth = 2; ctx.stroke();
-
-  // Latest value label
-  const last = pts[pts.length-1];
-  ctx.fillStyle = '#e8eaf0';
-  ctx.font = "bold 12px 'Space Mono', monospace";
-  ctx.textAlign = 'right';
-  ctx.fillText('$' + vals[vals.length-1].toLocaleString('en',{maximumFractionDigits:0}), W-pad, pad-4);
+  const isUp = vals[vals.length-1]>=vals[0];
+  const grad=ctx.createLinearGradient(0,0,0,H);
+  grad.addColorStop(0,isUp?'rgba(34,197,94,.25)':'rgba(239,68,68,.25)');
+  grad.addColorStop(1,'rgba(0,0,0,0)');
+  ctx.beginPath();ctx.moveTo(pts[0].x,H-pad);
+  pts.forEach(p=>ctx.lineTo(p.x,p.y));
+  ctx.lineTo(pts[pts.length-1].x,H-pad);
+  ctx.closePath();ctx.fillStyle=grad;ctx.fill();
+  ctx.beginPath();pts.forEach((p,i)=>i===0?ctx.moveTo(p.x,p.y):ctx.lineTo(p.x,p.y));
+  ctx.strokeStyle=isUp?'#22c55e':'#ef4444';ctx.lineWidth=2;ctx.stroke();
+  ctx.fillStyle='#e8eaf0';ctx.font="bold 11px 'Space Mono',monospace";ctx.textAlign='right';
+  ctx.fillText('$'+vals[vals.length-1].toLocaleString('en',{maximumFractionDigits:0}),W-pad,pad-4);
 }
 
 // ── Actions ───────────────────────────────────────────────────────────────────
-async function closePos(id) {
-  confirmAction('close-pos', 'Close this position at current market price?', async () => {
-    await api('POST', `/api/positions/${id}/close`, {reason:'manual'});
+function closePos(id) {
+  const msg = LANG==='zh' ? '按当前市场价平掉这个仓位？' : 'Close this position at current market price?';
+  confirmAction('close-pos', msg, async()=>{
+    await api('POST',`/api/positions/${id}/close`,{reason:'manual'});
     fetchPortfolio();
   });
 }
-
 async function setMode(mode) {
-  await api('POST', '/api/mode', {mode});
-  fetchStatus(); toast('Mode set to ' + mode, 'ok');
+  await api('POST','/api/mode',{mode});
+  fetchStatus();
+  toast(LANG==='zh'?`模式已切换: ${mode}`:`Mode: ${mode}`, 'ok');
 }
-
 async function setRisk(level) {
-  await api('POST', '/api/risk', {level});
-  toast('Risk level: ' + level, 'ok');
+  await api('POST','/api/risk',{level});
+  const labels = {conservative:LANG==='zh'?'保守':'Conservative', moderate:LANG==='zh'?'适中':'Moderate', aggressive:LANG==='zh'?'激进':'Aggressive'};
+  toast((LANG==='zh'?'风险等级: ':'Risk level: ')+labels[level], 'ok');
 }
 
 // ── Confirm dialog ────────────────────────────────────────────────────────────
+let confirmCallback = null;
 function confirmAction(id, msg, cb) {
   confirmCallback = cb;
-  document.getElementById('confirm-title').textContent = id.replace(/-/g,' ').toUpperCase();
+  document.getElementById('confirm-title').textContent = LANG==='zh'?'确认操作':'Confirm Action';
   document.getElementById('confirm-msg').textContent = msg;
   document.getElementById('confirm-overlay').classList.add('show');
 }
@@ -511,7 +804,7 @@ function dismissConfirm() {
 }
 async function runConfirm() {
   dismissConfirm();
-  if (confirmCallback) { try { await confirmCallback(); } catch(e) {} }
+  if(confirmCallback){try{await confirmCallback();}catch(e){}}
 }
 
 // ── Toast ─────────────────────────────────────────────────────────────────────
@@ -520,30 +813,56 @@ function toast(msg, type='ok') {
   div.className = 'toast toast-' + type;
   div.textContent = msg;
   document.getElementById('toasts').appendChild(div);
-  setTimeout(() => div.remove(), 4000);
+  setTimeout(()=>div.remove(), 5000);
 }
 
 // ── WebSocket live updates ────────────────────────────────────────────────────
+let wsInstance = null;
 function connectWS() {
-  const ws = new WebSocket('ws://localhost:8088/ws/portfolio');
-  ws.onmessage = e => {
-    const d = JSON.parse(e.data);
-    if (d.type === 'portfolio') {
-      document.getElementById('m-balance').textContent = '$' + d.balance.toLocaleString('en',{maximumFractionDigits:2});
-      equityData.push({t:Date.now(), v:d.balance});
-      if (equityData.length > 120) equityData.shift();
-      drawEquity();
-    }
-  };
-  ws.onclose = () => setTimeout(connectWS, 3000);
+  if(wsInstance){try{wsInstance.close();}catch(e){}}
+  const wsUrl = API.replace('http://','ws://').replace('https://','wss://') + '/ws/portfolio';
+  try {
+    const ws = new WebSocket(wsUrl);
+    wsInstance = ws;
+    ws.onmessage = e => {
+      const d = JSON.parse(e.data);
+      if(d.type==='portfolio'){
+        document.getElementById('m-balance').textContent='$'+d.balance.toLocaleString('en',{maximumFractionDigits:2});
+        equityData.push({t:Date.now(),v:d.balance});
+        if(equityData.length>120) equityData.shift();
+        drawEquity();
+      }
+    };
+    ws.onclose=()=>setTimeout(connectWS, 5000);
+    ws.onerror=()=>{};
+  } catch(e){}
 }
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 window.addEventListener('resize', drawEquity);
-connectWS();
-fetchPortfolio();
-fetchStatus();
-fetchPerformance();
+
+// Set API URL input to current value
+document.getElementById('api-url-input').value = API;
+
+// Apply saved language
+applyLang();
+
+// Check API health on load
+checkApiHealth().then(ok => {
+  if(ok) {
+    fetchPortfolio();
+    fetchStatus();
+    fetchPerformance();
+    connectWS();
+  } else {
+    const msg = LANG==='zh'
+      ? '⚠ 无法连接API — 请在顶部输入正确的服务器地址（如 http://1.2.3.4:8088）'
+      : '⚠ Cannot reach API — Enter your server address above (e.g. http://1.2.3.4:8088)';
+    toast(msg, 'info');
+  }
+});
+
+// Auto-refresh every 10s
 setInterval(() => refreshSection(currentSection), 10000);
 setInterval(fetchStatus, 15000);
 </script>
