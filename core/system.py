@@ -262,7 +262,23 @@ class TradingSystem:
             await self.strategy_orchestrator.scan_arbitrage([])
 
     async def snapshot_positions(self) -> None:
-        pass  # Future: write PositionSnapshot rows
+        """Write portfolio state to Redis so the API container can read it."""
+        if not self.order_manager or not self.redis:
+            return
+        try:
+            import json
+            portfolio = await self.order_manager.get_portfolio()
+            state = {
+                "total_balance": portfolio.total_balance,
+                "available_balance": portfolio.available_balance,
+                "total_position_value": portfolio.total_position_value,
+                "daily_pnl": portfolio.daily_pnl,
+                "daily_pnl_pct": portfolio.daily_pnl_pct,
+                "mode": portfolio.mode,
+            }
+            await self.redis.set("state:portfolio", json.dumps(state))
+        except Exception as exc:
+            self._log.debug("snapshot_positions_error", error=str(exc))
 
     # ── Public API (used by Telegram bot and web dashboard) ──────────────────
 
