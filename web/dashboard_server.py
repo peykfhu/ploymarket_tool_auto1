@@ -1,37 +1,69 @@
 """
 web/dashboard_server.py
-Serves dashboard.html on port 3056.
-Run standalone: python web/dashboard_server.py
+Serves dashboard.html as a static file on port 3056.
+Completely standalone — no trading system imports needed.
 """
 import asyncio
+import os
 from pathlib import Path
-from aiohttp import web
 
 DASHBOARD_PATH = Path(__file__).parent / "dashboard.html"
+HOST = os.environ.get("DASHBOARD_HOST", "0.0.0.0")
+PORT = int(os.environ.get("DASHBOARD_PORT", "3056"))
 
 
-async def index(request):
-    return web.FileResponse(DASHBOARD_PATH)
+async def start_dashboard():
+    try:
+        # Try aiohttp first
+        from aiohttp import web
+
+        async def index(request):
+            return web.FileResponse(DASHBOARD_PATH)
+
+        app = web.Application()
+        app.router.add_get("/", index)
+        app.router.add_get("/dashboard", index)
+        runner = web.AppRunner(app)
+        await runner.setup()
+        site = web.TCPSite(runner, HOST, PORT)
+        await site.start()
+        print(f"[dashboard] Listening on http://{HOST}:{PORT}", flush=True)
+        print(f"[dashboard] Serving: {DASHBOARD_PATH}", flush=True)
+        return runner
+
+    except ImportError:
+        # Fallback: Python built-in HTTP server
+        import http.server
+        import threading
+
+        os.chdir(str(DASHBOARD_PATH.parent))
+
+        class Handler(http.server.SimpleHTTPRequestHandler):
+            def do_GET(self):
+                self.path = "/dashboard.html"
+                return super().do_GET()
+            def log_message(self, fmt, *args):
+                pass  # suppress request logs
+
+        server = http.server.HTTPServer((HOST, PORT), Handler)
+        t = threading.Thread(target=server.serve_forever, daemon=True)
+        t.start()
+        print(f"[dashboard] Listening on http://{HOST}:{PORT} (stdlib fallback)", flush=True)
+        return server
 
 
-async def start_dashboard(host: str = "0.0.0.0", port: int = 3056):
-    app = web.Application()
-    app.router.add_get("/", index)
-    app.router.add_get("/dashboard", index)
-    runner = web.AppRunner(app)
-    await runner.setup()
-    site = web.TCPSite(runner, host, port)
-    await site.start()
-    return runner
+async def main():
+    runner = await start_dashboard()
+    try:
+        # Keep alive forever
+        while True:
+            await asyncio.sleep(3600)
+    except (KeyboardInterrupt, asyncio.CancelledError):
+        pass
+    finally:
+        if hasattr(runner, "cleanup"):
+            await runner.cleanup()
 
 
 if __name__ == "__main__":
-    async def main():
-        runner = await start_dashboard()
-        print(f"Dashboard running at http://localhost:3056")
-        print(f"API backend should be at http://localhost:8088")
-        try:
-            await asyncio.Event().wait()
-        finally:
-            await runner.cleanup()
     asyncio.run(main())

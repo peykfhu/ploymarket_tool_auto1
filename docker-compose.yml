@@ -1,89 +1,133 @@
 version: "3.9"
 
+# =============================================================
+#  Polymarket Trader — Docker Compose
+#  Ports:  Dashboard 3056 | API 8088 | Grafana 3060
+#          Postgres 5432  | Redis 6379 | Prometheus 9090
+# =============================================================
+
 services:
-  # ── Main trading app ────────────────────────────────────────────────────────
+
+  # ── Main trading application ─────────────────────────────────────────────────
   app:
-    build: { context: ., dockerfile: Dockerfile }
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: polymarket_trader:latest
     container_name: polymarket_app
     restart: unless-stopped
     env_file: .env
+    command: ["sh", "entrypoint_app.sh"]
     volumes:
       - ./config:/app/config:ro
       - ./logs:/app/logs
       - ./data:/app/data
     depends_on:
-      postgres: { condition: service_healthy }
-      redis:    { condition: service_healthy }
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     networks: [polymarket_net]
-    command: python main.py --mode paper
+    healthcheck:
+      test: ["CMD", "python", "-c", "import sys; sys.exit(0)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
 
-  # ── API backend (port 8088) ─────────────────────────────────────────────────
+  # ── FastAPI backend — port 8088 ──────────────────────────────────────────────
   api:
-    build: { context: ., dockerfile: Dockerfile }
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: polymarket_trader:latest
     container_name: polymarket_api
     restart: unless-stopped
     env_file: .env
-    ports: ["8088:8088"]
+    command: ["sh", "entrypoint_api.sh"]
+    ports:
+      - "8088:8088"
     volumes:
       - ./config:/app/config:ro
       - ./logs:/app/logs
       - ./data:/app/data
     depends_on:
-      postgres: { condition: service_healthy }
-      redis:    { condition: service_healthy }
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     networks: [polymarket_net]
-    command: python -c "import uvicorn; from web.api import app; uvicorn.run(app,host='0.0.0.0',port=8088)"
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8088/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
 
-  # ── Control dashboard (port 3056) ──────────────────────────────────────────
+  # ── Control dashboard — port 3056 ────────────────────────────────────────────
   dashboard:
-    build: { context: ., dockerfile: Dockerfile }
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: polymarket_trader:latest
     container_name: polymarket_dashboard
     restart: unless-stopped
-    ports: ["3056:3056"]
+    command: ["sh", "entrypoint_dashboard.sh"]
+    ports:
+      - "3056:3056"
     networks: [polymarket_net]
-    command: python web/dashboard_server.py
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:3056/"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
 
-  # ── PostgreSQL ──────────────────────────────────────────────────────────────
+  # ── PostgreSQL 16 ────────────────────────────────────────────────────────────
   postgres:
     image: postgres:16-alpine
     container_name: polymarket_postgres
     restart: unless-stopped
     environment:
-      POSTGRES_DB: ${POSTGRES_DB:-polymarket}
-      POSTGRES_USER: ${POSTGRES_USER:-trader}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?required}
+      POSTGRES_DB:       ${POSTGRES_DB:-polymarket}
+      POSTGRES_USER:     ${POSTGRES_USER:-trader}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
     volumes:
       - postgres_data:/var/lib/postgresql/data
-    ports: ["5432:5432"]
+    ports:
+      - "5432:5432"
     healthcheck:
-      test: ["CMD-SHELL","pg_isready -U ${POSTGRES_USER:-trader} -d ${POSTGRES_DB:-polymarket}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-trader} -d ${POSTGRES_DB:-polymarket}"]
       interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 10s
     networks: [polymarket_net]
 
-  # ── Redis ───────────────────────────────────────────────────────────────────
+  # ── Redis 7 ──────────────────────────────────────────────────────────────────
   redis:
     image: redis:7-alpine
     container_name: polymarket_redis
     restart: unless-stopped
     command: >
       redis-server
-      --requirepass ${REDIS_PASSWORD:?required}
+      --requirepass ${REDIS_PASSWORD:?Set REDIS_PASSWORD in .env}
       --maxmemory 512mb
       --maxmemory-policy allkeys-lru
       --appendonly yes
     volumes:
       - redis_data:/data
-    ports: ["6379:6379"]
+    ports:
+      - "6379:6379"
     healthcheck:
-      test: ["CMD","redis-cli","-a","${REDIS_PASSWORD}","ping"]
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 5s
     networks: [polymarket_net]
 
-  # ── Grafana (monitoring, --profile monitoring) ─────────────────────────────
+  # ── Grafana — port 3060 (optional: docker compose --profile monitoring up) ──
   grafana:
     image: grafana/grafana:latest
     container_name: polymarket_grafana
@@ -93,11 +137,13 @@ services:
       GF_USERS_ALLOW_SIGN_UP: "false"
     volumes:
       - grafana_data:/var/lib/grafana
-    ports: ["3060:3000"]
+    ports:
+      - "3060:3000"
     depends_on: [prometheus]
     networks: [polymarket_net]
     profiles: [monitoring]
 
+  # ── Prometheus — port 9090 (optional) ────────────────────────────────────────
   prometheus:
     image: prom/prometheus:latest
     container_name: polymarket_prometheus
@@ -105,7 +151,8 @@ services:
     volumes:
       - ./config/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus_data:/prometheus
-    ports: ["9090:9090"]
+    ports:
+      - "9090:9090"
     networks: [polymarket_net]
     profiles: [monitoring]
 

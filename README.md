@@ -1,52 +1,106 @@
 # Polymarket Automated Trading System
 
-A fully automated trading system for Polymarket prediction markets with real-time news signals, sports data, whale tracking, and multi-strategy execution.
+A fully automated trading system for Polymarket prediction markets.
 
-## Quick Start
+## Quick Start (3 steps)
 
+### Step 1 — Prerequisites
+Make sure Docker is installed:
 ```bash
-# 1. Setup
-./scripts/setup.sh
-
-# 2. Configure secrets
-nano .env
-
-# 3. Start (paper trading by default)
-docker compose up
-
-# 4. Open control dashboard
-open http://localhost:3056
-
-# 5. API backend
-open http://localhost:8088
+# Linux (Ubuntu/Debian)
+curl -fsSL https://get.docker.com | sh
+sudo usermod -aG docker $USER
+# Log out and back in, then verify:
+docker --version
 ```
 
-## Ports
-| Service | Port | Description |
-|---------|------|-------------|
-| Dashboard | 3056 | React control room UI |
-| API | 8088 | FastAPI JSON backend |
-| Grafana | 3060 | Metrics (--profile monitoring) |
-| Prometheus | 9090 | Metrics (--profile monitoring) |
-| PostgreSQL | 5432 | Primary database |
-| Redis | 6379 | Streams + cache |
-
-## Modes
+### Step 2 — Configure
 ```bash
-python main.py --mode paper      # paper trading (safe default)
-python main.py --mode live       # live trading (real money!)
-python main.py --mode backtest --start 2024-01-01 --end 2024-06-01
-python main.py --mode collect-data
-python main.py --mode telegram-only
+cp .env.example .env
+nano .env   # Set POSTGRES_PASSWORD and REDIS_PASSWORD at minimum
 ```
 
-## Run Tests
+### Step 3 — Start
 ```bash
-pytest tests/ -v
+chmod +x start.sh stop.sh deploy.sh
+./start.sh           # paper trading (safe, no real money)
+./start.sh live      # live trading (real money — use with caution!)
 ```
 
-## Collect Historical Data (for backtesting)
+## Access
+| URL | Description |
+|-----|-------------|
+| http://localhost:3056 | Control dashboard |
+| http://localhost:8088/docs | API documentation |
+| http://localhost:8088/health | Health check |
+
+## Service Architecture
+```
+┌─────────────────────────────────────────────────────────────┐
+│  Dashboard  :3056   →   API Backend  :8088                  │
+│       ↕                      ↕                              │
+│  Trading App  ←→  Redis :6379  ←→  PostgreSQL :5432        │
+└─────────────────────────────────────────────────────────────┘
+```
+
+## Common Commands
 ```bash
-python scripts/collect_history.py --start 2024-01-01 --end 2024-12-31
-python scripts/run_backtest.py --start 2024-01-01 --end 2024-06-01
+# View logs
+docker compose logs -f app        # trading engine logs
+docker compose logs -f api        # API server logs
+docker compose logs -f dashboard  # dashboard logs
+
+# Check status
+docker compose ps
+
+# Stop everything
+./stop.sh
+
+# Restart a single service
+docker compose restart app
+
+# Run backtest
+docker compose exec app python main.py --mode backtest --start 2024-01-01 --end 2024-06-01
+
+# Collect historical data
+docker compose exec app python scripts/collect_history.py --start 2024-01-01 --end 2024-12-31
+
+# Run tests
+docker compose exec app pytest tests/ -v
+```
+
+## Remote Deployment
+```bash
+# First deploy to server
+./deploy.sh ubuntu@your-server-ip
+
+# Update existing deploy
+./deploy.sh ubuntu@your-server-ip --update
+
+# Rollback to previous version
+./deploy.sh ubuntu@your-server-ip --rollback
+```
+
+## Troubleshooting
+
+**Services keep restarting:**
+```bash
+docker compose logs app    # check error message
+```
+
+**Port already in use:**
+```bash
+# Change ports in docker-compose.yml:
+# "3056:3056" → "3057:3056" etc.
+```
+
+**Database connection refused:**
+```bash
+# Ensure POSTGRES_PASSWORD in .env matches DATABASE__POSTGRES_PASSWORD
+docker compose restart app
+```
+
+**Permission denied on start.sh:**
+```bash
+chmod +x start.sh stop.sh deploy.sh
 ```
