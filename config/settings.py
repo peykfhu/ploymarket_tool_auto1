@@ -237,7 +237,7 @@ class Settings(BaseSettings):
         yaml_path = yaml_path or ROOT_DIR / "config" / "settings.yaml"
         yaml_data: dict[str, Any] = {}
         if Path(yaml_path).exists():
-            with open(yaml_path) as f:
+            with open(yaml_path, encoding="utf-8") as f:
                 yaml_data = yaml.safe_load(f) or {}
         return cls(**yaml_data)
 

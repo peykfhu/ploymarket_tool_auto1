@@ -267,6 +267,9 @@ class SignalPipeline:
             # Publish to Redis
             await self._redis.publish_to_stream("stream:scored_signals", filtered.to_stream_dict())
 
+            # Cache the scored signal so Telegram/API can force-execute or skip it
+            await self._cache_signal(filtered)
+
             # Notify Telegram for actionable signals
             if filtered.confidence_score >= self._buy_threshold and self._notifier:
                 try:
@@ -283,6 +286,36 @@ class SignalPipeline:
 
         except Exception as exc:
             self._log.error("signal_process_error", error=str(exc), exc_info=True)
+
+    # ── Signal caching (for Telegram force-execute / skip) ────────────────────
+
+    SIGNAL_CACHE_TTL_S = 3600  # 1 hour
+
+    async def _cache_signal(self, scored: ScoredSignal) -> None:
+        """Persist a lightweight scored-signal summary so it can be force-executed later."""
+        try:
+            sig = scored.signal
+            # Infer outcome from direction ("buy_yes"/"buy_no" or "yes"/"no")
+            direction = (getattr(sig, "direction", "") or "").lower()
+            outcome = "Yes" if "yes" in direction or direction == "buy" else "No"
+            summary = {
+                "signal_id": sig.signal_id,
+                "signal_type": sig.signal_type,
+                "market_id": sig.market_id,
+                "market_question": sig.market_question,
+                "direction": direction,
+                "outcome": outcome,
+                "confidence_score": int(scored.confidence_score),
+                "recommended_action": scored.recommended_action,
+                "recommended_position_pct": float(scored.recommended_position_pct),
+                "reasoning": getattr(sig, "reasoning", ""),
+                "cached_at": datetime.now(timezone.utc).isoformat(),
+            }
+            await self._redis.cache_set(
+                f"cache:signal:{sig.signal_id}", summary, ttl=self.SIGNAL_CACHE_TTL_S
+            )
+        except Exception as exc:
+            self._log.warning("signal_cache_failed", error=str(exc))
 
     # ── Market matching helper ────────────────────────────────────────────────
 

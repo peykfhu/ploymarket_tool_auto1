@@ -329,8 +329,8 @@ class LiveExecutor(BaseExecutor):
         # Timeout — try to cancel and return partial/timeout
         try:
             await self.cancel_order(clob_order_id)
-        except Exception:
-            pass
+        except Exception as exc:
+            self._log.warning("timeout_cancel_failed", order_id=clob_order_id, error=str(exc))
 
         return OrderResult(
             order_id=order.order_id,

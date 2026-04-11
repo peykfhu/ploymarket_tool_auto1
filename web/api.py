@@ -147,231 +147,350 @@ GAMMA_BASE = "https://gamma-api.polymarket.com"
 CLOB_BASE  = "https://clob.polymarket.com"
 
 CATEGORY_KEYWORDS = {
-    # Politics: broad sweep
-    "politics": [
-        "election", "elect", "president", "presidential", "congress", "senate", "vote", "voting",
-        "minister", "prime minister", "party", "referendum", "republican", "democrat",
-        "biden", "trump", "harris", "obama", "governor", "mayor", "poll",
-        "legislation", "bill", "law", "court", "supreme", "ruling", "impeach",
-        "macron", "sunak", "modi", "xi", "putin", "nato", "un ", "g7", "g20",
-        "war", "ceasefire", "sanction", "treaty", "cabinet", "parliament",
-    ],
-    # Sports: all major sports and competitions
-    "sports": [
-        "win", "champion", "nba", "nfl", "mlb", "nhl", "mls",
-        "premier league", "la liga", "bundesliga", "serie a", "ligue 1",
-        "world cup", "euros", "copa", "champions league", "europa league",
-        "final", "playoffs", "semifinal", "quarter", "series",
-        "match", "game", "beat", "defeat", "score",
-        "super bowl", "stanley cup", "masters", "open", "grand slam",
-        "wimbledon", "us open", "french open", "australian open",
-        "formula 1", "f1", "nascar", "ufc", "boxing", "tennis",
-        "basketball", "football", "soccer", "baseball", "hockey",
-        "golf", "swimming", "olympics", "medal",
-    ],
-    # Esports
-    "esports": [
-        "league of legends", "lol", "dota", "dota 2", "cs2", "csgo",
-        "valorant", "esport", "esports", "worlds", "world championship",
-        "tournament", "lck", "lpl", "lec", "lcs", "t1", "faker",
-        "g2", "fnatic", "navi", "cloud9", "team liquid", "faze",
-        "overwatch", "hearthstone", "starcraft", "rocket league",
-        "fortnite", "pubg", "apex", "gaming", "gamer",
-    ],
-    # Crypto / BTC
-    "btc": [
-        "bitcoin", "btc", "crypto", "cryptocurrency", "ethereum", "eth",
-        "price", "above", "below", "reach", "hit", "exceed",
-        "solana", "sol", "xrp", "ripple", "bnb", "usdc",
-        "defi", "nft", "blockchain", "halving", "etf",
-        "coinbase", "binance", "kraken", "sec", "cftc",
-        "stablecoin", "altcoin", "market cap", "bull", "bear",
-    ],
+    "politics":  ["election", "president", "congress", "senate", "vote", "minister", "party", "referendum", "biden", "trump", "harris"],
+    "sports":    ["win", "champion", "nba", "nfl", "mlb", "premier league", "world cup", "final", "playoffs", "series", "match", "beat", "defeat"],
+    "esports":   ["league of legends", "lol", "dota", "cs2", "valorant", "esport", "worlds", "tournament", "lck", "lpl", "t1", "faker"],
+    "btc":       ["bitcoin", "btc", "crypto", "ethereum", "eth", "price", "$", "above", "below", "reach", "hit"],
 }
-
-# Gamma API category mapping
-GAMMA_CATEGORY_MAP = {
-    "politics": "politics",
-    "sports": "sports",
-    "esports": "pop culture",   # Polymarket groups esports under pop culture/sports
-    "btc": "crypto",
-}
-
-def _calc_edge_score(yes_price: float, liquidity: float, hours_left) -> float:
-    """Score 0-100: how tradeable/opportunistic is this market right now."""
-    import math
-    score = 0.0
-    # Uncertainty: price near 0.5 = maximum opportunity
-    uncertainty = 1.0 - abs(yes_price - 0.5) * 2
-    score += uncertainty * 30
-    # Liquidity score (log scale, caps at $100k)
-    score += min(30, math.log1p(max(0, liquidity)) / math.log1p(100_000) * 30)
-    # Time urgency bonus
-    if hours_left is not None:
-        if hours_left < 1:
-            score += 40    # ending in < 1 hour — highest urgency
-        elif hours_left < 6:
-            score += 34
-        elif hours_left < 24:
-            score += 26
-        elif hours_left < 72:
-            score += 18
-        elif hours_left < 168:
-            score += 10
-        elif hours_left < 720:
-            score += 4
-    return round(min(score, 100), 1)
-
 
 async def _scan_markets_from_api(category: str, keywords: list[str]) -> list[dict]:
-    """
-    Fetch active markets from Polymarket Gamma API.
-    Strategy:
-      1. Fetch up to 500 active markets with pagination
-      2. Filter by keyword across question+slug+description+tags
-      3. Filter by end date (0 to 30 days from now, or no end date)
-      4. Score and sort by opportunity score
-    """
-    import aiohttp  # noqa: F811
-    results: list[dict] = []
+    """Fetch live markets from Polymarket Gamma API matching keywords."""
+    import aiohttp, asyncio
+    results = []
     now = datetime.now(timezone.utc)
-    seen_ids: set = set()
 
     try:
         async with aiohttp.ClientSession(
-            timeout=aiohttp.ClientTimeout(total=25),
-            headers={"User-Agent": "Mozilla/5.0 PolyTrader/2.0"},
+            timeout=aiohttp.ClientTimeout(total=15),
+            headers={"User-Agent": "Mozilla/5.0 PolyTrader/2.0"}
         ) as session:
+            # Fetch active markets with pagination
             cursor = ""
             pages = 0
-
-            while pages < 5:   # up to 500 markets (100 per page)
+            while pages < 3:  # max 3 pages = 300 markets
                 params: dict = {"active": "true", "closed": "false", "limit": 100}
                 if cursor:
                     params["cursor"] = cursor
-
                 try:
-                    async with session.get(
-                        f"{GAMMA_BASE}/markets", params=params
-                    ) as resp:
+                    async with session.get(f"{GAMMA_BASE}/markets", params=params) as resp:
                         if resp.status != 200:
-                            _log_activity("WARN", "scanner",
-                                f"Gamma API returned {resp.status} for [{category}]")
                             break
-                        raw = await resp.json(content_type=None)
-
-                    # Gamma API returns list directly or {data:[], next_cursor:""}
-                    if isinstance(raw, list):
-                        markets = raw
-                        cursor = ""
-                    else:
-                        markets = raw.get("data") or raw.get("markets") or []
-                        cursor = raw.get("next_cursor") or raw.get("nextCursor") or ""
-
+                        data = await resp.json()
+                    markets = data if isinstance(data, list) else data.get("data", [])
+                    cursor = data.get("next_cursor", "") if isinstance(data, dict) else ""
                     pages += 1
 
                     for m in markets:
-                        market_id = m.get("id") or m.get("conditionId") or ""
-                        if not market_id or market_id in seen_ids:
-                            continue
-                        seen_ids.add(market_id)
+                        q = (m.get("question") or "").lower()
+                        end_date_str = m.get("endDate") or m.get("endDateIso") or ""
 
-                        # Build searchable text from all fields
-                        q       = (m.get("question") or "").lower()
-                        slug    = (m.get("slug") or "").lower()
-                        desc    = (m.get("description") or "").lower()
-                        tags_raw = m.get("tags") or m.get("tag") or []
-                        if isinstance(tags_raw, str):
-                            tags = tags_raw.lower()
-                        else:
-                            tags = " ".join(
-                                (t.get("label") or t.get("name") or t.get("slug") or str(t)).lower()
-                                for t in (tags_raw if isinstance(tags_raw, list) else [])
-                            )
-                        searchable = f"{q} {slug} {desc} {tags}"
-
-                        # Keyword filter (empty keywords = accept all)
-                        if keywords and not any(kw.lower() in searchable for kw in keywords):
+                        # Filter by keyword
+                        if not any(kw in q for kw in keywords):
                             continue
 
-                        # Parse end date from multiple possible fields
+                        # Parse end date
                         end_dt = None
-                        for field in ("endDate", "endDateIso", "end_date", "expiryDate"):
-                            val = m.get(field)
-                            if val:
-                                try:
-                                    if isinstance(val, (int, float)):
-                                        end_dt = datetime.fromtimestamp(val, tz=timezone.utc)
-                                    else:
-                                        end_dt = datetime.fromisoformat(
-                                            str(val).replace("Z", "+00:00")
-                                        )
-                                    break
-                                except Exception:
-                                    pass
+                        try:
+                            if end_date_str:
+                                end_dt = datetime.fromisoformat(end_date_str.replace("Z", "+00:00"))
+                        except (ValueError, TypeError) as exc:
+                            logger.debug("end_date_parse_failed", value=end_date_str, error=str(exc))
 
-                        # Time filter
-                        hours_left: float | None = None
+                        # Only include: currently active OR ending in next 7 days
                         if end_dt:
                             hours_left = (end_dt - now).total_seconds() / 3600
-                            if hours_left < -1:        # already expired
+                            if hours_left < 0 or hours_left > 168:  # 0 to 7 days
                                 continue
-                            if hours_left > 720:       # > 30 days — skip
-                                continue
-                        # No end_dt = ongoing market (e.g. rolling BTC price) — keep
+                        else:
+                            hours_left = 999
 
-                        # Parse price from outcomePrices or tokens
+                        liquidity = float(m.get("liquidityNum") or m.get("liquidity") or 0)
                         yes_price = 0.5
                         try:
-                            op = m.get("outcomePrices") or []
-                            if op and len(op) >= 1:
-                                yes_price = float(op[0])
-                            elif m.get("bestBid") or m.get("bestAsk"):
-                                bid = float(m.get("bestBid") or 0)
-                                ask = float(m.get("bestAsk") or 1)
-                                yes_price = (bid + ask) / 2
-                        except Exception:
-                            pass
-                        yes_price = max(0.001, min(0.999, yes_price))
-
-                        liquidity = float(
-                            m.get("liquidityNum") or m.get("liquidity") or
-                            m.get("volume") or 0
-                        )
-                        volume = float(m.get("volume") or m.get("volumeNum") or 0)
+                            outcomes = m.get("outcomePrices") or []
+                            if outcomes and len(outcomes) >= 1:
+                                yes_price = float(outcomes[0])
+                        except (ValueError, TypeError, IndexError) as exc:
+                            logger.debug("yes_price_parse_failed", error=str(exc))
 
                         results.append({
-                            "id": market_id,
+                            "id": m.get("id") or m.get("conditionId", ""),
                             "question": m.get("question", ""),
                             "category": category,
                             "yes_price": round(yes_price, 4),
-                            "no_price": round(1.0 - yes_price, 4),
+                            "no_price": round(1 - yes_price, 4),
                             "liquidity": round(liquidity, 0),
-                            "volume": round(volume, 0),
+                            "volume": float(m.get("volume") or 0),
                             "end_date": end_dt.isoformat() if end_dt else "",
-                            "hours_left": round(hours_left, 1) if hours_left is not None else None,
-                            "slug": m.get("slug", ""),
-                            "url": f"https://polymarket.com/event/{m.get('slug', market_id)}",
+                            "hours_left": round(hours_left, 1) if hours_left != 999 else None,
+                            "url": f"https://polymarket.com/event/{m.get('slug', '')}",
                             "edge_score": _calc_edge_score(yes_price, liquidity, hours_left),
                         })
 
                     if not cursor or not markets:
                         break
-                    await asyncio.sleep(0.3)   # gentle rate limiting
+                    await asyncio.sleep(0.5)  # rate limit protection
 
                 except Exception as exc:
-                    _log_activity("WARN", "scanner", f"页面 {pages} 获取失败: {exc}")
+                    _log_activity("WARN", "scanner", f"分页获取失败: {exc}")
                     break
 
     except Exception as exc:
         _log_activity("ERROR", "scanner", f"扫描失败 [{category}]: {exc}")
 
+    # Sort by edge score
     results.sort(key=lambda x: x["edge_score"], reverse=True)
-    _log_activity("INFO", "scanner",
-        f"[{category}] 扫描完成: {len(results)} 个市场 (已检查 {len(seen_ids)} 条)")
-    return results[:100]
+    _log_activity("INFO", "scanner", f"扫描完成 [{category}]: 找到 {len(results)} 个市场")
+    return results[:50]
 
 
+def _calc_edge_score(yes_price: float, liquidity: float, hours_left: float) -> float:
+    """Score 0-100: how tradeable/opportunistic is this market."""
+    score = 0.0
+    # Price near 0.5 = uncertain = opportunity
+    uncertainty = 1.0 - abs(yes_price - 0.5) * 2
+    score += uncertainty * 30
+    # Liquidity (log scale, saturates at $50k)
+    import math
+    score += min(30, math.log1p(liquidity) / math.log1p(50000) * 30)
+    # Time urgency (few hours left = higher urgency for live trades)
+    if hours_left is not None and hours_left < 168:
+        if hours_left < 2:
+            score += 40  # very urgent
+        elif hours_left < 24:
+            score += 25
+        elif hours_left < 72:
+            score += 15
+        else:
+            score += 5
+    return round(score, 1)
+
+
+# ── FastAPI App ───────────────────────────────────────────────────────────────
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    await _ensure_db()
+    await _ensure_redis()
+    _log_activity("INFO", "api", "API服务器启动完成", {"port": 8088})
+    yield
+    if _redis_client:
+        try:
+            await _redis_client.aclose()
+        except Exception as exc:
+            logger.warning("redis_close_failed", error=str(exc))
+
+
+app = FastAPI(title="Polymarket Trader API v2", version="2.0.0", lifespan=lifespan)
+app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+
+
+# ── Request Models ─────────────────────────────────────────────────────────────
+class ClosePositionRequest(BaseModel):
+    reason: str = "manual"
+
+class SetModeRequest(BaseModel):
+    mode: str
+
+class SetRiskRequest(BaseModel):
+    level: str
+
+class TestOrderRequest(BaseModel):
+    market_id: str
+    market_question: str
+    outcome: str = "Yes"
+    size_usd: float = 10.0
+    price: float = 0.5
+    strategy: str = "manual_test"
+    note: str = ""
+
+class WhaleFollowConfig(BaseModel):
+    market_id: str
+    market_question: str
+    enabled: bool = True
+    min_whale_tier: str = "A"
+    auto_follow: bool = True
+    follow_size_pct: float = 0.02
+
+class AutomationConfig(BaseModel):
+    enabled: bool
+    agents: list[str]
+    min_confidence: int = 70
+    max_position_pct: float = 0.05
+    paper_only: bool = True
+
+class PaperBalanceRequest(BaseModel):
+    balance: float
+
+
+# ── Health ─────────────────────────────────────────────────────────────────────
+@app.get("/health")
+async def health():
+    db_ok = _db_session_factory is not None
+    redis_ok = _redis_client is not None
+    if not db_ok: await _ensure_db(); db_ok = _db_session_factory is not None
+    if not redis_ok: await _ensure_redis(); redis_ok = _redis_client is not None
+    return {"status": "ok", "db": "connected" if db_ok else "disconnected",
+            "redis": "connected" if redis_ok else "disconnected",
+            "time": datetime.now(timezone.utc).isoformat()}
+
+
+# ── Status ────────────────────────────────────────────────────────────────────
+@app.get("/api/status")
+async def get_status():
+    risk = await _get_risk_state()
+    portfolio = await _get_portfolio_state()
+    collectors = await _get_collector_health()
+    mode = portfolio.get("mode", os.environ.get("EXECUTION__MODE", "paper"))
+    r = await _ensure_redis()
+    paused = False
+    if r:
+        try:
+            paused = await r.get("control:paused") == "1"
+        except Exception as exc:
+            logger.warning("redis_get_paused_failed", error=str(exc))
+    return {
+        "mode": mode, "paused": paused,
+        "circuit_breaker": {
+            "active": bool(risk.get("circuit_breaker_active", False)),
+            "level": risk.get("circuit_breaker_level", "none"),
+            "reason": risk.get("circuit_breaker_reason", ""),
+            "resume_at": risk.get("circuit_breaker_resume_at"),
+        },
+        "collectors": collectors,
+        "automation": _automation_config,
+    }
+
+
+# ── Portfolio ─────────────────────────────────────────────────────────────────
+@app.get("/api/portfolio")
+async def get_portfolio():
+    factory = await _ensure_db()
+    state = await _get_portfolio_state()
+    risk = await _get_risk_state()
+
+    portfolio = {
+        "total_balance": float(state.get("total_balance", 0)),
+        "available_balance": float(state.get("available_balance", 0)),
+        "total_position_value": float(state.get("total_position_value", 0)),
+        "exposure_pct": 0.0,
+        "daily_pnl": float(risk.get("daily_pnl", 0)),
+        "daily_pnl_pct": float(risk.get("daily_pnl_pct", 0)),
+        "total_trades_today": int(risk.get("daily_trades_count", 0)),
+        "wins_today": int(risk.get("daily_wins", 0)),
+        "losses_today": int(risk.get("daily_losses", 0)),
+        "positions": [],
+    }
+    total = portfolio["total_balance"]
+    if total > 0:
+        portfolio["exposure_pct"] = portfolio["total_position_value"] / total
+
+    if factory:
+        try:
+            from sqlalchemy import text
+            mode = os.environ.get("EXECUTION__MODE", "paper")
+            async with factory() as session:
+                result = await session.execute(text("""
+                    SELECT id, market_id, market_question, outcome, side,
+                           entry_price, entry_price, size_usd, 0.0, 0.0,
+                           0.0, 0.0, strategy_name, signal_id, opened_at
+                    FROM trades WHERE closed_at IS NULL AND mode = :mode
+                    ORDER BY opened_at DESC LIMIT 50
+                """), {"mode": mode})
+                rows = result.fetchall()
+            portfolio["positions"] = [{
+                "position_id": str(r[0]), "market_id": r[1],
+                "market_question": (r[2] or "")[:100], "outcome": r[3],
+                "side": r[4], "entry_price": float(r[5] or 0),
+                "current_price": float(r[6] or 0), "size_usd": float(r[7] or 0),
+                "unrealized_pnl": float(r[8] or 0), "unrealized_pnl_pct": float(r[9] or 0),
+                "take_profit": float(r[10] or 0), "stop_loss": float(r[11] or 0),
+                "strategy_name": r[12] or "", "signal_id": r[13] or "",
+                "opened_at": r[14].isoformat() if r[14] else "",
+            } for r in rows]
+        except Exception as exc:
+            _log_activity("WARN", "api", f"持仓查询失败: {exc}")
+    return portfolio
+
+
+# ── Trades ────────────────────────────────────────────────────────────────────
+@app.get("/api/trades")
+async def get_trades(days: int = 1):
+    factory = await _ensure_db()
+    if not factory: return []
+    try:
+        from sqlalchemy import text
+        mode = os.environ.get("EXECUTION__MODE", "paper")
+        since = datetime.now(timezone.utc) - timedelta(days=days)
+        async with factory() as session:
+            result = await session.execute(text("""
+                SELECT id, market_question, strategy_name, outcome,
+                       entry_price, exit_price, size_usd,
+                       realized_pnl, realized_pnl_pct,
+                       close_reason, opened_at, closed_at
+                FROM trades WHERE mode=:mode AND opened_at>=:since
+                ORDER BY opened_at DESC LIMIT 200
+            """), {"mode": mode, "since": since})
+            rows = result.fetchall()
+        return [{"trade_id": str(r[0]), "market_question": (r[1] or "")[:80],
+                 "strategy_name": r[2] or "", "outcome": r[3] or "",
+                 "entry_price": float(r[4] or 0), "exit_price": float(r[5]) if r[5] else None,
+                 "size_usd": float(r[6] or 0),
+                 "realized_pnl": float(r[7]) if r[7] is not None else None,
+                 "realized_pnl_pct": float(r[8]) if r[8] is not None else None,
+                 "close_reason": r[9], "opened_at": r[10].isoformat() if r[10] else None,
+                 "closed_at": r[11].isoformat() if r[11] else None} for r in rows]
+    except Exception as exc:
+        _log_activity("WARN", "api", f"交易记录查询失败: {exc}")
+        return []
+
+
+# ── Performance ───────────────────────────────────────────────────────────────
+@app.get("/api/performance")
+async def get_performance(days: int = 30):
+    factory = await _ensure_db()
+    if not factory: return {"total_pnl": 0, "win_rate": 0, "total_trades": 0}
+    try:
+        from sqlalchemy import text
+        mode = os.environ.get("EXECUTION__MODE", "paper")
+        start = datetime.now(timezone.utc) - timedelta(days=days)
+        async with factory() as session:
+            result = await session.execute(text("""
+                SELECT COUNT(*) AS total,
+                       COALESCE(SUM(realized_pnl), 0) AS total_pnl,
+                       COUNT(*) FILTER (WHERE realized_pnl >= 0) AS wins,
+                       COALESCE(AVG(realized_pnl), 0) AS avg_pnl
+                FROM trades WHERE mode=:mode AND closed_at IS NOT NULL AND closed_at>=:start
+            """), {"mode": mode, "start": start})
+            row = result.fetchone()
+            # Daily equity for chart
+            eq_result = await session.execute(text("""
+                SELECT DATE(closed_at AT TIME ZONE 'UTC') as day,
+                       COALESCE(SUM(realized_pnl), 0) as day_pnl
+                FROM trades WHERE mode=:mode AND closed_at IS NOT NULL AND closed_at>=:start
+                GROUP BY day ORDER BY day
+            """), {"mode": mode, "start": start})
+            eq_rows = eq_result.fetchall()
+        total = int(row[0]) if row else 0
+        total_pnl = float(row[1]) if row else 0.0
+        wins = int(row[2]) if row else 0
+        equity_curve = []
+        running = float((await _get_portfolio_state()).get("total_balance", 10000)) - total_pnl
+        for r in eq_rows:
+            running += float(r[1])
+            equity_curve.append({"date": str(r[0]), "value": round(running, 2)})
+        return {
+            "total_trades": total, "total_pnl": round(total_pnl, 2),
+            "total_pnl_pct": 0.0, "wins": wins, "losses": total - wins,
+            "win_rate": round(wins / total, 4) if total > 0 else 0.0,
+            "avg_pnl": float(row[3]) if row else 0.0,
+            "equity_curve": equity_curve,
+        }
+    except Exception as exc:
+        _log_activity("WARN", "api", f"绩效查询失败: {exc}")
+        return {"total_pnl": 0, "win_rate": 0, "total_trades": 0, "equity_curve": []}
+
+
+# ── Market Scanner ─────────────────────────────────────────────────────────────
 @app.get("/api/markets/scan")
 async def scan_markets(category: str = "all", refresh: bool = False):
     """Scan live Polymarket markets. Results cached for 5 min."""
@@ -381,16 +500,14 @@ async def scan_markets(category: str = "all", refresh: bool = False):
     for cat in cats:
         cache_key = f"{cat}_ts"
         cached_ts = _scanner_results.get(cache_key, 0)
-        if not refresh and time.time() - cached_ts < 300:
+        if not refresh and time.time() - cached_ts < 300:  # 5 min cache
             results[cat] = _scanner_results.get(cat, [])
         else:
             keywords = CATEGORY_KEYWORDS.get(cat, [])
-            # For "all" pass all keywords merged; for specific cat pass just that cat
             markets = await _scan_markets_from_api(cat, keywords)
             _scanner_results[cat] = markets
             _scanner_results[cache_key] = time.time()
             results[cat] = markets
-            _log_activity("INFO","scanner",f"[{cat}] 获取到 {len(markets)} 个市场")
     return results
 
 
@@ -511,22 +628,18 @@ async def get_whales(limit: int = 20):
                 "timestamp": r[8].isoformat() if r[8] else datetime.now(timezone.utc).isoformat(),
                 "follow_enabled": _whale_follows.get(r[0] or "", {}).get("auto_follow", False),
             } for r in rows]
-        except: pass
+        except Exception as exc:
+            _log_activity("ERROR", "api", f"whale query failed: {exc}")
 
     # If no DB data, return mock structure showing system is ready
-    # Always return status info even if no DB
-    status_entry = {
-        "whale_address": "", "whale_name": "——",
-        "whale_tier": "—", "whale_win_rate": 0.0,
-        "action": "none", "market_question":
-            "⚠ 需配置Polygon RPC才能显示链上大户数据（当前模式：模拟交易）",
-        "amount_usd": 0.0, "price": 0.0,
-        "timestamp": datetime.now(timezone.utc).isoformat(),
-        "follow_enabled": False,
-        "is_placeholder": True,
-    }
     if not db_whales:
-        db_whales = [status_entry]
+        db_whales = [{
+            "whale_address": "0x0000...demo", "whale_name": "等待链上数据",
+            "whale_tier": "—", "whale_win_rate": 0,
+            "action": "—", "market_question": "大户追踪需要配置Polygon RPC和私钥",
+            "amount_usd": 0, "price": 0,
+            "timestamp": datetime.now(timezone.utc).isoformat(), "follow_enabled": False,
+        }]
     return db_whales
 
 
@@ -560,8 +673,10 @@ async def set_automation(config: AutomationConfig):
     _automation_config.update(config.dict())
     r = await _ensure_redis()
     if r:
-        try: await r.set("control:automation", json.dumps(_automation_config))
-        except: pass
+        try:
+            await r.set("control:automation", json.dumps(_automation_config))
+        except Exception as exc:
+            logger.warning("redis_set_automation_failed", error=str(exc))
     _log_activity("INFO", "automation",
                   f"自动化配置更新: {'启用' if config.enabled else '停用'}",
                   {"agents": config.agents})
@@ -672,6 +787,71 @@ async def set_risk(req: SetRiskRequest):
     if r: await r.set("control:risk_level", req.level)
     _log_activity("INFO", "control", f"风险等级设置: {req.level}")
     return {"level": req.level}
+
+
+# ── Pending signals (cached by SignalPipeline) ────────────────────────────────
+class ExecuteSignalRequest(BaseModel):
+    size_multiplier: float = 1.0
+
+
+@app.get("/api/signals/pending")
+async def get_pending_signals(limit: int = 50):
+    r = await _ensure_redis()
+    if not r:
+        return {"signals": []}
+    signals: list[dict] = []
+    try:
+        cursor = 0
+        scanned = 0
+        while scanned < 500:
+            cursor, keys = await r.scan(cursor=cursor, match="cache:signal:*", count=100)
+            for key in keys:
+                raw = await r.get(key)
+                if not raw:
+                    continue
+                try:
+                    data = json.loads(raw)
+                except (ValueError, TypeError):
+                    continue
+                signals.append(data)
+                if len(signals) >= limit:
+                    break
+            scanned += len(keys)
+            if cursor == 0 or len(signals) >= limit:
+                break
+    except Exception as exc:
+        _log_activity("ERROR", "signals", f"pending scan failed: {exc}")
+    signals.sort(key=lambda s: s.get("confidence_score", 0), reverse=True)
+    return {"signals": signals}
+
+
+@app.post("/api/signals/{signal_id}/execute")
+async def execute_pending_signal(signal_id: str, req: ExecuteSignalRequest):
+    r = await _ensure_redis()
+    if not r:
+        raise HTTPException(503, "Redis unavailable")
+    cmd = {
+        "action": "execute_signal",
+        "signal_id": signal_id,
+        "size_multiplier": float(req.size_multiplier or 1.0),
+    }
+    await r.lpush("control:commands", json.dumps(cmd))
+    _log_activity("INFO", "signals", f"execute queued: {signal_id}", {"mult": req.size_multiplier})
+    return {"status": "queued", "signal_id": signal_id}
+
+
+@app.post("/api/signals/{signal_id}/skip")
+async def skip_pending_signal(signal_id: str):
+    r = await _ensure_redis()
+    if not r:
+        raise HTTPException(503, "Redis unavailable")
+    await r.delete(f"cache:signal:{signal_id}")
+    await r.lpush(
+        "control:commands",
+        json.dumps({"action": "skip_signal", "signal_id": signal_id}),
+    )
+    _log_activity("INFO", "signals", f"skipped: {signal_id}")
+    return {"status": "skipped", "signal_id": signal_id}
 
 
 # ── WebSocket ─────────────────────────────────────────────────────────────────

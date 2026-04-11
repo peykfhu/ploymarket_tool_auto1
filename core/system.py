@@ -177,6 +177,9 @@ class TradingSystem:
             self.strategy_orchestrator.start(),
         )
         self.scheduler.start()
+        self._control_task = asyncio.create_task(
+            self._consume_control_commands(), name="system:control_queue"
+        )
 
         try:
             await asyncio.Event().wait()
@@ -189,6 +192,13 @@ class TradingSystem:
         self._running = False
         self._log.info("system_shutting_down")
 
+        ctrl = getattr(self, "_control_task", None)
+        if ctrl and not ctrl.done():
+            ctrl.cancel()
+            try:
+                await ctrl
+            except (asyncio.CancelledError, Exception):
+                pass
         if self.scheduler:
             self.scheduler.stop()
         if self.signal_pipeline:
@@ -229,10 +239,52 @@ class TradingSystem:
             await self.order_manager.submit_order(order, RiskDecision.approve(order))
 
     async def refresh_market_cache(self) -> None:
-        pass  # Handled by PolymarketCollector internally
+        """Forwards market snapshots from the collector into the orchestrator cache."""
+        if not (self.collector_manager and self.strategy_orchestrator):
+            return
+        pc = getattr(self.collector_manager, "polymarket_collector", None)
+        if not pc:
+            return
+        snapshots: dict[str, Any] = {}
+        for mid in getattr(pc, "_watched_market_ids", []) or []:
+            cached = await self.redis.get_cached_market_data(mid)
+            if cached:
+                snapshots[mid] = cached
+        if snapshots:
+            self.strategy_orchestrator.update_market_cache(snapshots)
 
     async def update_whale_stats(self) -> None:
-        pass  # Future: query DB for whale trade outcomes and update win rates
+        """Recompute whale win rates from completed trades and write them to Redis."""
+        if not self.db:
+            return
+        try:
+            actions = await self.db.get_recent_whale_actions(500)
+        except Exception as exc:
+            self._log.warning("update_whale_stats_query_failed", error=str(exc))
+            return
+        stats: dict[str, dict[str, float]] = {}
+        for a in actions or []:
+            addr = getattr(a, "whale_address", None) or (a.get("whale_address") if isinstance(a, dict) else None)
+            if not addr:
+                continue
+            pnl = getattr(a, "realized_pnl", None)
+            if pnl is None and isinstance(a, dict):
+                pnl = a.get("realized_pnl", 0.0)
+            pnl = float(pnl or 0.0)
+            entry = stats.setdefault(addr, {"total": 0, "wins": 0, "pnl": 0.0})
+            entry["total"] += 1
+            entry["pnl"] += pnl
+            if pnl > 0:
+                entry["wins"] += 1
+        for addr, s in stats.items():
+            total = s["total"] or 1
+            win_rate = s["wins"] / total
+            await self.redis.cache_set(
+                f"whale:stats:{addr}",
+                {"win_rate": round(win_rate, 4), "total_trades": s["total"], "total_pnl": round(s["pnl"], 2)},
+                ttl=86400,
+            )
+        self._log.info("whale_stats_updated", whale_count=len(stats))
 
     async def run_circuit_breaker_check(self) -> None:
         if not self.order_manager:
@@ -346,11 +398,137 @@ class TradingSystem:
         engine = BacktestEngine(settings=self.settings, data_loader=loader)
         return await engine.run(start, end)
 
-    async def execute_pending_signal(self, signal_id: str, size_multiplier: float = 1.0) -> None:
-        pass  # Future: look up cached signal and force-execute
+    async def execute_pending_signal(self, signal_id: str, size_multiplier: float = 1.0) -> Any:
+        """Look up a cached ScoredSignal summary and force-execute it through risk + orders."""
+        if not (self.redis and self.order_manager and self.risk_engine):
+            self._log.warning("execute_pending_signal_not_ready", signal_id=signal_id)
+            return None
 
-    async def skip_signal(self, signal_id: str) -> None:
-        pass
+        cached = await self.redis.cache_get(f"cache:signal:{signal_id}")
+        if not cached:
+            self._log.warning("signal_not_found_in_cache", signal_id=signal_id)
+            if self.notifier:
+                await self.notifier.send_alert(f"Signal {signal_id} not found (expired or invalid)")
+            return None
+
+        market_id = cached.get("market_id", "")
+        outcome = cached.get("outcome", "Yes")
+
+        # Pull current market price from Redis cache; fall back to 0.5
+        price = 0.5
+        market_data = await self.redis.get_cached_market_data(market_id)
+        if market_data:
+            price = float(market_data.get("yes_price" if outcome == "Yes" else "no_price", 0.5))
+
+        portfolio = await self.order_manager.get_portfolio()
+        position_pct = float(cached.get("recommended_position_pct", 0.02)) * max(0.1, size_multiplier)
+        size_usd = round(portfolio.total_balance * position_pct, 2)
+        if size_usd <= 0:
+            self._log.warning("execute_pending_signal_zero_size", signal_id=signal_id)
+            return None
+
+        from strategy.models import OrderRequest
+        order = OrderRequest.create(
+            signal_id=signal_id,
+            strategy_name="manual_force_execute",
+            market_id=market_id,
+            market_question=cached.get("market_question", ""),
+            side="buy",
+            outcome=outcome,
+            price=price,
+            size_usd=size_usd,
+            position_pct=position_pct,
+            confidence_score=int(cached.get("confidence_score", 0)),
+            take_profit=round(price * 1.15, 4),
+            stop_loss=round(price * 0.85, 4),
+            reasoning=f"Manual force-execute of signal {signal_id}: {cached.get('reasoning', '')}",
+        )
+
+        risk_state = await self.risk_engine.get_state()
+        risk_decision = await self.risk_engine.evaluate(order, portfolio, risk_state)
+        if not risk_decision.approved and risk_decision.adjusted_order is None:
+            self._log.warning(
+                "force_execute_blocked_by_risk",
+                signal_id=signal_id,
+                violations=risk_decision.violations,
+            )
+            if self.notifier:
+                await self.notifier.send_alert(
+                    f"⛔ Signal {signal_id} blocked by risk: {risk_decision.violations}"
+                )
+            return None
+
+        final_order = risk_decision.adjusted_order or order
+        await self.order_manager.submit_order(final_order, risk_decision)
+        await self.redis.cache_delete(f"cache:signal:{signal_id}")
+        self._log.info("signal_force_executed", signal_id=signal_id, size_usd=final_order.size_usd)
+        return final_order
+
+    async def _consume_control_commands(self) -> None:
+        """Poll Redis `control:commands` list for commands issued from the web dashboard."""
+        import json
+        self._log.info("control_queue_consumer_started")
+        while self._running:
+            try:
+                raw = None
+                try:
+                    client = self.redis._client() if self.redis else None
+                    if client is not None:
+                        async with client as c:
+                            popped = await c.blpop("control:commands", timeout=5)
+                        if popped:
+                            _, raw = popped
+                            if isinstance(raw, bytes):
+                                raw = raw.decode()
+                except Exception as exc:
+                    self._log.debug("control_queue_poll_error", error=str(exc))
+                    await asyncio.sleep(5)
+                    continue
+
+                if not raw:
+                    continue
+                try:
+                    cmd = json.loads(raw)
+                except Exception:
+                    self._log.warning("control_cmd_malformed", raw=str(raw)[:200])
+                    continue
+
+                action = cmd.get("action", "")
+                self._log.info("control_cmd_received", action=action)
+                try:
+                    if action == "close_position":
+                        await self.close_position(cmd.get("position_id", ""))
+                    elif action == "close_all":
+                        await self.close_all_positions(cmd.get("reason", "web_dashboard"))
+                    elif action == "execute_signal":
+                        await self.execute_pending_signal(
+                            cmd.get("signal_id", ""),
+                            float(cmd.get("size_multiplier", 1.0) or 1.0),
+                        )
+                    elif action == "skip_signal":
+                        await self.skip_signal(cmd.get("signal_id", ""))
+                    else:
+                        self._log.warning("control_cmd_unknown", action=action)
+                except Exception as exc:
+                    self._log.error("control_cmd_handler_error", action=action, error=str(exc), exc_info=True)
+            except asyncio.CancelledError:
+                break
+            except Exception as exc:
+                self._log.error("control_queue_loop_error", error=str(exc), exc_info=True)
+                await asyncio.sleep(5)
+        self._log.info("control_queue_consumer_stopped")
+
+    async def skip_signal(self, signal_id: str) -> bool:
+        """Mark a cached pending signal as skipped (delete from cache)."""
+        if not self.redis:
+            return False
+        cached = await self.redis.cache_get(f"cache:signal:{signal_id}")
+        if not cached:
+            self._log.info("skip_signal_not_found", signal_id=signal_id)
+            return False
+        await self.redis.cache_delete(f"cache:signal:{signal_id}")
+        self._log.info("signal_skipped", signal_id=signal_id)
+        return True
 
     # ── Builder helpers ───────────────────────────────────────────────────────
 
