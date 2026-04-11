@@ -40,10 +40,13 @@ from strategy.whale_follow_strategy import (
     SingleWhaleFollowStrategy,
     WhaleFadeStrategy,
 )
+from strategy.tail_end_strategy import TailEndStrategy
+from strategy.info_asymmetry_strategy import InfoAsymmetryStrategy
 
 logger = structlog.get_logger(__name__)
 
 POSITION_CHECK_INTERVAL_S = 30
+TAIL_END_SCAN_INTERVAL_S = 60
 
 
 class StrategyOrchestrator:
@@ -77,6 +80,7 @@ class StrategyOrchestrator:
 
         self._position_task: asyncio.Task | None = None
         self._whale_follow_task: asyncio.Task | None = None
+        self._tail_end_task: asyncio.Task | None = None
 
     # ── Lifecycle ─────────────────────────────────────────────────────────────
 
@@ -87,10 +91,16 @@ class StrategyOrchestrator:
         self._whale_follow_task = asyncio.create_task(
             self._whale_follow_loop(), name="orchestrator:whale_follow"
         )
+        if "tail_end" in self._all_strategies and any(
+            s.name == "tail_end" for s in self._active
+        ):
+            self._tail_end_task = asyncio.create_task(
+                self._tail_end_scan_loop(), name="orchestrator:tail_end"
+            )
         self._log.info("orchestrator_started")
 
     async def stop(self) -> None:
-        for task in (self._position_task, self._whale_follow_task):
+        for task in (self._position_task, self._whale_follow_task, self._tail_end_task):
             if task and not task.done():
                 task.cancel()
                 try:
@@ -287,6 +297,35 @@ class StrategyOrchestrator:
             except Exception as exc:
                 self._log.error("whale_follow_loop_error", error=str(exc))
 
+    # ── Tail-end periodic scan ───────────────────────────────────────────────
+
+    async def _tail_end_scan_loop(self) -> None:
+        """Every TAIL_END_SCAN_INTERVAL_S, let TailEnd scan the market cache."""
+        tail: TailEndStrategy | None = self._all_strategies.get("tail_end")  # type: ignore
+        if not tail:
+            return
+        while True:
+            try:
+                await asyncio.sleep(TAIL_END_SCAN_INTERVAL_S)
+                if not self._market_cache:
+                    continue
+                portfolio = await self._order_manager.get_portfolio()
+                risk_state = await self._risk.get_state()
+                if risk_state.circuit_breaker_active:
+                    continue
+                orders = await tail.scan(self._market_cache, portfolio)
+                for order in orders:
+                    try:
+                        await self._submit_order(order, portfolio, risk_state)
+                    except Exception as exc:
+                        self._log.error(
+                            "tail_end_submit_error", error=str(exc), exc_info=True
+                        )
+            except asyncio.CancelledError:
+                break
+            except Exception as exc:
+                self._log.error("tail_end_loop_error", error=str(exc))
+
     # ── Arbitrage scan ────────────────────────────────────────────────────────
 
     async def scan_arbitrage(self, market_pairs: list[tuple[str, str]]) -> list[OrderRequest]:
@@ -355,6 +394,20 @@ class StrategyOrchestrator:
             ),
             "whale_fade": WhaleFadeStrategy(
                 base_position_pct=r.score_to_position.get("buy", 0.03),
+            ),
+            "tail_end": TailEndStrategy(
+                end_window_hours=getattr(s, "tail_end_window_hours", 6.0),
+                min_favorite_price=getattr(s, "tail_end_min_favorite_price", 0.90),
+                base_position_pct=r.score_to_position.get("buy", 0.03),
+                max_position_pct=r.score_to_position.get("strong_buy", 0.06),
+            ),
+            "info_asymmetry": InfoAsymmetryStrategy(
+                min_speed_advantage=getattr(s, "info_min_speed_advantage", 0.55),
+                min_market_relevance=getattr(s, "info_min_market_relevance", 0.60),
+                min_sports_edge=getattr(s, "info_min_sports_edge", 0.06),
+                min_confidence_score=s.buy_threshold,
+                base_position_pct=r.score_to_position.get("buy", 0.03),
+                max_position_pct=r.score_to_position.get("strong_buy", 0.06),
             ),
         }
         return strategies

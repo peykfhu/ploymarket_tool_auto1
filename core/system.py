@@ -388,8 +388,36 @@ class TradingSystem:
         return []
 
     async def set_mode(self, mode: str) -> None:
+        """
+        Hot-swap paper/live/backtest execution mode.
+
+        Rebuilds the executor so orders routed after this call use the
+        new venue. If the mode is unchanged, this is a no-op.
+        """
+        if mode not in ("live", "paper", "backtest"):
+            raise ValueError(f"invalid mode: {mode}")
+        if mode == self.mode:
+            return
+
+        self._log.info("execution_mode_switch", previous=self.mode, target=mode)
         self.mode = mode
         self.settings.execution.mode = mode
+
+        # Rebuild executor in place. OrderManager keeps its existing
+        # portfolio state; only the downstream venue changes.
+        try:
+            new_exec = self._build_executor()
+            self.executor = new_exec
+            if self.order_manager is not None:
+                # OrderManager references the executor; let it know.
+                if hasattr(self.order_manager, "set_executor"):
+                    await self.order_manager.set_executor(new_exec)  # type: ignore[func-returns-value]
+                else:
+                    self.order_manager.executor = new_exec  # best-effort fallback
+            self._log.info("execution_mode_switched", mode=mode)
+        except Exception as exc:
+            self._log.error("execution_mode_switch_failed", error=str(exc), exc_info=True)
+            raise
 
     async def run_backtest(self, start: datetime, end: datetime) -> Any:
         from backtest.engine import BacktestEngine

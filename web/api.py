@@ -690,6 +690,167 @@ async def trigger_automation(background_tasks: BackgroundTasks):
     return {"status": "triggered"}
 
 
+# ── Agents (strategy registry surface for the dashboard) ──────────────────────
+#
+# Hard-coded registry keyed to what strategy/orchestrator.py actually
+# wires up. When a new strategy is added there, mirror it here so the
+# dashboard can render its tile.
+AGENT_REGISTRY: list[dict] = [
+    {
+        "id": "tail_end",
+        "name": "TailEnd 吃尾盘",
+        "category": "scalper",
+        "description": (
+            "Closing-tape scalper. Scans markets whose end_date is within "
+            "the configured window and scalps the favored side when the "
+            "book is thin and momentum is confirmed."
+        ),
+        "risk": "medium",
+        "signal_driven": False,
+        "scan_driven": True,
+    },
+    {
+        "id": "info_asymmetry",
+        "name": "InfoArb 信息差",
+        "category": "latency_edge",
+        "description": (
+            "Exploits latency between primary-source news (politics / "
+            "sports) and Polymarket repricing. Fires on NewsSignal and "
+            "SportsSignal events that show a high speed_advantage or edge."
+        ),
+        "risk": "medium",
+        "signal_driven": True,
+        "scan_driven": False,
+    },
+    {
+        "id": "swing_mean_reversion",
+        "name": "Mean Reversion",
+        "category": "swing",
+        "description": "Buys/sells price deviations from 7-day mean without news catalyst.",
+        "risk": "low",
+        "signal_driven": True,
+        "scan_driven": False,
+    },
+    {
+        "id": "swing_breakout",
+        "name": "Breakout",
+        "category": "swing",
+        "description": "Volume-confirmed breakout after consolidation.",
+        "risk": "medium",
+        "signal_driven": True,
+        "scan_driven": False,
+    },
+    {
+        "id": "swing_event_driven",
+        "name": "Event Driven",
+        "category": "swing",
+        "description": "News-triggered directional trades with entity matching.",
+        "risk": "medium",
+        "signal_driven": True,
+        "scan_driven": False,
+    },
+    {
+        "id": "sports_safe_lock",
+        "name": "Safe Lock",
+        "category": "sports",
+        "description": "Leading team with little time remaining, still underpriced.",
+        "risk": "low",
+        "signal_driven": True,
+        "scan_driven": False,
+    },
+    {
+        "id": "sports_reversal",
+        "name": "Reversal Catch",
+        "category": "sports",
+        "description": "Trailing team with momentum shift; market overly pessimistic.",
+        "risk": "high",
+        "signal_driven": True,
+        "scan_driven": False,
+    },
+    {
+        "id": "sports_live_ou",
+        "name": "Live Over/Under",
+        "category": "sports",
+        "description": "Live-game pace-of-play O/U mispricing.",
+        "risk": "medium",
+        "signal_driven": True,
+        "scan_driven": False,
+    },
+    {
+        "id": "whale_single_follow",
+        "name": "Whale Follow",
+        "category": "whale",
+        "description": "Follow a single S-tier whale's large position after a delay.",
+        "risk": "medium",
+        "signal_driven": True,
+        "scan_driven": False,
+    },
+    {
+        "id": "whale_consensus",
+        "name": "Whale Consensus",
+        "category": "whale",
+        "description": "Follow when N+ whales move the same direction inside a window.",
+        "risk": "low",
+        "signal_driven": True,
+        "scan_driven": False,
+    },
+]
+
+
+@app.get("/api/agents")
+async def list_agents():
+    """
+    Return the strategy/agent registry with enabled-flag inferred from
+    settings.yaml (via env fallbacks) + the current execution mode.
+    """
+    enabled_env = os.environ.get("STRATEGY__ENABLED_STRATEGIES", "")
+    enabled_set: set[str] = set()
+    if enabled_env:
+        enabled_set = {x.strip() for x in enabled_env.split(",") if x.strip()}
+    else:
+        # Fall back to the hard-coded yaml default list
+        enabled_set = {
+            "swing_mean_reversion", "swing_breakout", "swing_event_driven",
+            "sports_safe_lock", "sports_reversal", "sports_live_ou",
+            "whale_single_follow", "whale_consensus",
+            "tail_end", "info_asymmetry",
+        }
+
+    mode = os.environ.get("EXECUTION__MODE", "paper")
+    agents = [
+        {**a, "enabled": a["id"] in enabled_set}
+        for a in AGENT_REGISTRY
+    ]
+    return {
+        "mode": mode,
+        "total": len(agents),
+        "enabled": sum(1 for a in agents if a["enabled"]),
+        "agents": agents,
+    }
+
+
+@app.post("/api/agents/{agent_id}/toggle")
+async def toggle_agent(agent_id: str):
+    """
+    Toggle a single agent on/off via Redis control key. The trading
+    engine picks this up on its next loop cycle.
+    """
+    if not any(a["id"] == agent_id for a in AGENT_REGISTRY):
+        raise HTTPException(404, f"unknown agent: {agent_id}")
+    r = await _ensure_redis()
+    new_state = "on"
+    if r:
+        try:
+            key = f"control:agent:{agent_id}"
+            current = await r.get(key)
+            new_state = "off" if current == "on" else "on"
+            await r.set(key, new_state)
+        except Exception as exc:
+            logger.warning("toggle_agent_redis_failed", error=str(exc))
+    _log_activity("INFO", "agents", f"Agent [{agent_id}] 切换至 {new_state}")
+    return {"agent_id": agent_id, "state": new_state}
+
+
 async def _run_automation_cycle():
     _log_activity("INFO", "automation", "手动触发自动化扫描周期")
     for agent in _automation_config.get("agents", []):

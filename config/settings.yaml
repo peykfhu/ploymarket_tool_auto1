@@ -117,6 +117,8 @@ strategy:
     - sports_live_ou
     - whale_single_follow
     - whale_consensus
+    - tail_end           # 吃尾盘 — closing-tape scalper
+    - info_asymmetry     # 体育/政治信息差 — latency edge
   strong_buy_threshold: 80
   buy_threshold: 60
   watch_threshold: 40
@@ -127,6 +129,15 @@ strategy:
   safe_lock_min_lead_goals: 2
   reversal_max_market_price: 0.35
   whale_follow_min_score: 65
+
+  # Tail-end scalper
+  tail_end_window_hours: 6.0
+  tail_end_min_favorite_price: 0.90
+
+  # Information-asymmetry agent
+  info_min_speed_advantage: 0.55
+  info_min_market_relevance: 0.60
+  info_min_sports_edge: 0.06
 
 execution:
   mode: "paper"                    # CHANGE TO "live" ONLY WHEN READY

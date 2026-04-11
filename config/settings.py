@@ -150,6 +150,7 @@ class StrategySettings(BaseModel):
         "swing_mean_reversion", "swing_breakout", "swing_event_driven",
         "sports_safe_lock", "sports_reversal", "sports_live_ou",
         "whale_single_follow", "whale_consensus",
+        "tail_end", "info_asymmetry",
     ])
     strong_buy_threshold: int = 80
     buy_threshold: int = 60
@@ -161,6 +162,15 @@ class StrategySettings(BaseModel):
     safe_lock_min_lead_goals: int = 2
     reversal_max_market_price: float = 0.35
     whale_follow_min_score: int = 65
+
+    # TailEnd (吃尾盘) scalper tuning
+    tail_end_window_hours: float = 6.0
+    tail_end_min_favorite_price: float = 0.90
+
+    # InfoAsymmetry (sports/politics edge) tuning
+    info_min_speed_advantage: float = 0.55
+    info_min_market_relevance: float = 0.60
+    info_min_sports_edge: float = 0.06
 
 
 class ExecutionSettings(BaseModel):
